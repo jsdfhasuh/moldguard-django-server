@@ -81,15 +81,19 @@ MoldGuard_模具保养知识库_上传包V0.1.zip
 ## 当前状态
 
 ```text
-权威计划：V3.1 FINAL_FROZEN_FOR_COMPETITION
+技术计划：V3.1 TECHNICAL_BASELINE
+负责人决策：OWNER_DECISIONS_REQUIRED
 知识库基线：MoldGuard KB V0.1
 系统状态：NOT_IMPLEMENTED
-下一步：Gate -1 比赛平台最小链路验证
+下一步：完成 D01—D18 决策 + Gate -1 平台验证
 建议实施分支：agent/django-full-workflow-v1
 ```
 
+V3.1 已形成完整技术方案，但知识库仍有多版本规则和业务口径未确认。正式编码前必须先完成负责人决策清单；未确认的条目不能被实现为自动业务规则。决策完成后再将计划恢复为 `FINAL_FROZEN_FOR_COMPETITION`。
+
 ## 权威文档
 
+- [负责人决策清单](docs/decisions/2026-08-12-owner-decision-checklist.md)
 - [完整实施计划 V3.1](docs/plans/2026-08-12-moldguard-django-implementation-plan.md)
 - [智能体平台与 Django 关系说明 V1.1](docs/architecture/2026-08-12-agent-platform-django-relationship.md)
 - [知识库与 Django 对齐说明](docs/knowledge/2026-08-12-moldguard-kb-django-alignment.md)
@@ -127,4 +131,4 @@ MoldGuard_模具保养知识库_上传包V0.1.zip
 → 履历更新、周期复位和统计分析
 ```
 
-业务代码必须在 `agent/django-full-workflow-v1` 分支实施，并按 V3.1 计划中的 Gate 和 Stop Gate 分阶段验收。
+业务代码必须在 `agent/django-full-workflow-v1` 分支实施；D01—D18与平台Gate -1未通过前，不进入全量编码。
