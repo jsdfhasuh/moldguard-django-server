@@ -16,8 +16,8 @@ RUN apt-get update \
 COPY . .
 
 RUN python manage.py check \
-    && groupadd --system moldguard \
-    && useradd --system --gid moldguard --home-dir /app --shell /usr/sbin/nologin moldguard \
+    && groupadd --system --gid 10001 moldguard \
+    && useradd --system --uid 10001 --gid moldguard --home-dir /app --shell /usr/sbin/nologin moldguard \
     && chown -R moldguard:moldguard /app
 
 USER moldguard

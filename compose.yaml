@@ -1,9 +1,6 @@
-name: moldguard-competition
-
 services:
   mariadb:
     image: mariadb:11.8
-    container_name: moldguard-competition-mariadb
     restart: unless-stopped
     command:
       - --character-set-server=utf8mb4
@@ -16,7 +13,7 @@ services:
       MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?set MARIADB_ROOT_PASSWORD in .env}
       MARIADB_INITDB_SKIP_TZINFO: "1"
     volumes:
-      - ./runtime/mariadb:/var/lib/mysql
+      - ${MOLDGUARD_RUNTIME_DIR:-./runtime/competition}/mariadb:/var/lib/mysql
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -37,21 +34,23 @@ services:
     build:
       context: .
     image: moldguard-competition-server:${MOLDGUARD_IMAGE_TAG:-local}
-    container_name: moldguard-competition-api
     restart: unless-stopped
     environment:
       DJANGO_DEBUG: "false"
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?set DJANGO_SECRET_KEY in .env}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-127.0.0.1,localhost}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
       DJANGO_DB_ENGINE: mariadb
       DJANGO_DB_HOST: mariadb
       DJANGO_DB_PORT: "3306"
       DJANGO_DB_NAME: ${MARIADB_DATABASE:?set MARIADB_DATABASE in .env}
       DJANGO_DB_USER: ${MARIADB_USER:?set MARIADB_USER in .env}
       DJANGO_DB_PASSWORD: ${MARIADB_PASSWORD:?set MARIADB_PASSWORD in .env}
-      MOLDGUARD_PUBLIC_BASE_URL: ${MOLDGUARD_PUBLIC_BASE_URL:-http://127.0.0.1:18080}
+      MOLDGUARD_PUBLIC_BASE_URL: ${MOLDGUARD_PUBLIC_BASE_URL:-http://127.0.0.1:18081}
+      MOLDGUARD_HOST_PORT: ${MOLDGUARD_HOST_PORT:-18081}
       MOLDGUARD_KNOWLEDGE_VERSION: MOLDGUARD-KB-1.2
       MOLDGUARD_REPORT_SCHEMA_VERSION: REPORT-FORM-1.1
+      MOLDGUARD_ABNORMAL_OVERDUE_HOURS: ${MOLDGUARD_ABNORMAL_OVERDUE_HOURS:-4}
       DEMO_EMPLOYEE_1_EMAIL: ${DEMO_EMPLOYEE_1_EMAIL:-demo-injection@example.com}
       DEMO_EMPLOYEE_2_EMAIL: ${DEMO_EMPLOYEE_2_EMAIL:-demo-sheet-metal@example.com}
       DEMO_EMPLOYEE_3_EMAIL: ${DEMO_EMPLOYEE_3_EMAIL:-demo-unavailable@example.com}
@@ -60,7 +59,7 @@ services:
       mariadb:
         condition: service_healthy
     ports:
-      - "127.0.0.1:18080:18080"
+      - "${MOLDGUARD_HOST_BIND:-127.0.0.1}:${MOLDGUARD_HOST_PORT:-18081}:18080"
     healthcheck:
       test:
         - CMD
@@ -74,6 +73,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777
+      - /app/staticfiles:size=32m,mode=0755,uid=10001,gid=10001
     security_opt:
       - no-new-privileges:true
     logging:

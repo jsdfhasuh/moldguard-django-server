@@ -14,6 +14,7 @@ until python manage.py migrate --noinput; do
     sleep 2
 done
 
+python manage.py collectstatic --noinput
 python manage.py seed_demo_data --if-empty
 
 exec gunicorn config.wsgi:application \
