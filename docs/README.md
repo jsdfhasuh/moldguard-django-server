@@ -11,9 +11,10 @@
 3. [平台与Django关系](architecture/2026-08-12-agent-platform-django-relationship.md)
 4. [业务场景](business/2026-08-12-moldguard-business-scenarios.md)
 5. [知识库对齐](knowledge/2026-08-12-moldguard-kb-django-alignment.md)
-6. [邮件报工链接契约](contracts/2026-08-13-mail-report-link-contract.md)
-7. [知识库权威确认](decisions/2026-08-13-kb-v1.2-authority-and-mail-report-confirmation.md)
-8. [负责人决策状态](decisions/2026-08-12-owner-decision-checklist.md)
+6. [知识库V1.2发布记录](knowledge/2026-08-13-moldguard-kb-v1.2-release.md)
+7. [邮件报工链接契约](contracts/2026-08-13-mail-report-link-contract.md)
+8. [知识库权威确认](decisions/2026-08-13-kb-v1.2-authority-and-mail-report-confirmation.md)
+9. [负责人决策状态](decisions/2026-08-12-owner-decision-checklist.md)
 
 ## 历史文档
 
