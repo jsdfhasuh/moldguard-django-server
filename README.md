@@ -19,11 +19,11 @@
 ## 仓库结构
 
 ```text
-docs/             方案、模型、接口、业务场景和决策记录
-knowledge-base/   版本化知识库正文、发布清单和校验信息
+docs/             方案、模型、接口、业务场景和当前决策
+knowledge-base/   解压后的最终知识文档、发布清单和校验信息
 ```
 
-知识库与 Django 代码分离管理，不将知识正文硬编码进业务代码。
+知识库与 Django 代码分离管理，不将知识正文硬编码进业务代码。仓库不保存 ZIP 交付包。
 
 ## 最终知识库
 
@@ -33,7 +33,7 @@ knowledge-base/   版本化知识库正文、发布清单和校验信息
 - [保养、点检、故障工时与邮件链接报工](knowledge-base/releases/MOLDGUARD-KB-1.2/upload/02_保养内容_点检_储放_故障工时与邮件链接报工.md)
 - [发布清单和校验报告](knowledge-base/releases/MOLDGUARD-KB-1.2/manifests/)
 
-比赛平台只上传 `upload/` 下的两个 Markdown 文件，不同时上传完整审阅稿，避免重复召回。
+比赛平台只上传 `upload/` 下的两个 Markdown 文件，不上传发布清单或校验报告。
 
 ## 主流程
 
@@ -60,6 +60,6 @@ knowledge-base/   版本化知识库正文、发布清单和校验信息
 - [实施计划V4.2](docs/plans/2026-08-12-moldguard-django-implementation-plan.md)
 - [模型字段V3.0](docs/models/2026-08-13-django-model-field-review.md)
 - [邮件报工链接契约](docs/contracts/2026-08-13-mail-report-link-contract.md)
-- [知识库V1.2发布记录](docs/knowledge/2026-08-13-moldguard-kb-v1.2-release.md)
+- [知识库MOLDGUARD-KB-1.2](knowledge-base/releases/MOLDGUARD-KB-1.2/README.md)
 
 建议实施分支：`agent/django-test-server-v1`
