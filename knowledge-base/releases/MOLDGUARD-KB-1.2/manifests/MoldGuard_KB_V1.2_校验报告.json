@@ -1,0 +1,70 @@
+{
+  "version": "1.2",
+  "snapshot": "MOLDGUARD-KB-1.2",
+  "status": "PASS",
+  "release_date": "2026-08-13",
+  "entry_count": 239,
+  "module_counts": {
+    "trigger_rule": 10,
+    "maintenance_content": 73,
+    "maintenance_frequency": 4,
+    "inspection_standard": 22,
+    "storage_standard": 28,
+    "safety_standard": 5,
+    "fault_standard_hours": 78,
+    "workflow": 8,
+    "project_decision": 11
+  },
+  "checks": {
+    "version_is_1_2": true,
+    "snapshot_is_1_2": true,
+    "trigger_rules_10": true,
+    "inspection_standards_22": true,
+    "fault_standards_78": true,
+    "storage_standards_28": true,
+    "project_decisions_11": true,
+    "workflow_entries_8": true,
+    "single_time_rule_id": true,
+    "manual_chk_stamp_009": true,
+    "no_maintenance_level_field": true,
+    "no_reviewer_fields": true,
+    "auto_create_pending_assignment": true,
+    "lightweight_does_not_reset": true,
+    "formal_resets_both": true,
+    "first_production_anchor": true,
+    "lc109_explicit_category": true,
+    "fault_candidates": true,
+    "abnormal_repair_loop": true,
+    "mail_report_link_decision": true,
+    "report_url_from_django": true,
+    "report_form_schema_defined": true,
+    "normal_and_abnormal_report_states": true,
+    "supersedes_through_v1_1": true
+  },
+  "files": {
+    "MoldGuard_模具保养知识库_最终冻结版V1.2.md": {
+      "bytes": 50258,
+      "sha256": "c5958b7b9d393995ddc170d7b042365cf79c4fb00ae68fd0289c603ffb0538cd"
+    },
+    "MoldGuard_KB_V1.2/01_触发保养标准.md": {
+      "bytes": 10987,
+      "sha256": "57bb8cc1434f92a6b45c2813855e286defdf8e6d6f10369b469d58a38a4c5359"
+    },
+    "MoldGuard_KB_V1.2/02_保养内容_点检_储放_故障工时与邮件链接报工.md": {
+      "bytes": 42744,
+      "sha256": "52487f3412ee252dc18c5da980deba9e4c7aa8c5f19eed382a4d9c5c08db9c16"
+    },
+    "MoldGuard_KB_结构化条目V1.2.jsonl": {
+      "bytes": 189443,
+      "sha256": "0cbdbc3b3a1b6201d63561df3778fa7e6113553eec8cf25348b40ae3d2da4fb6"
+    },
+    "MoldGuard_模具保养知识库_最终上传包V1.2.zip": {
+      "bytes": 18711,
+      "sha256": "99acdbdaa3597a4375104bafef56270fa244b0418ed28113637bcbfa0bdea319",
+      "members": [
+        "01_触发保养标准.md",
+        "02_保养内容_点检_储放_故障工时与邮件链接报工.md"
+      ]
+    }
+  }
+}
