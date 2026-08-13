@@ -3,7 +3,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework.views import APIView
 
 from .exceptions import ProbeAPIException
-from .models import MaintenanceAlert, Mold, WorkOrder
+from .models import KnowledgeSnapshot, MaintenanceAlert, Mold, NotificationReceipt, WorkOrder
 from .responses import success_response
 from .serializers import (
     AlertScanSerializer,
@@ -11,8 +11,12 @@ from .serializers import (
     AutoAssignSerializer,
     CreateWorkOrderSerializer,
     EmployeeSerializer,
+    KnowledgeSnapshotCreateSerializer,
+    KnowledgeSnapshotSerializer,
     MaintenanceAlertSerializer,
     MoldSerializer,
+    NotificationCreateSerializer,
+    NotificationReceiptSerializer,
     WorkOrderEventSerializer,
     WorkOrderSerializer,
 )
@@ -212,4 +216,110 @@ class WorkOrderHistoryView(APIView):
                 "events": WorkOrderEventSerializer(work_order.events.all(), many=True).data,
             },
             request=request,
+        )
+
+
+def ensure_assigned(work_order):
+    if work_order.assigned_employee_id is None:
+        raise ProbeAPIException("EMPLOYEE_NOT_ASSIGNED", "工单尚未派工", status_code=409)
+
+
+class WorkOrderKnowledgeContextView(APIView):
+    def get(self, request, work_order_id):
+        work_order = get_work_order(work_order_id)
+        ensure_assigned(work_order)
+        is_injection = work_order.mold.mold_type == Mold.MoldType.INJECTION
+        mold_label = "注塑模具" if is_injection else "钣金模具"
+        return success_response(
+            {
+                "work_order_id": work_order.work_order_id,
+                "mold_id": work_order.mold_id,
+                "mold_type": work_order.mold.mold_type,
+                "rule_id": "MAINT_TRIGGER_TONNAGE_V1",
+                "knowledge_profile_code": work_order.knowledge_profile_code,
+                "query_keywords": [mold_label, "周期保养", "点检标准", "安全要求"],
+                "required_types": [
+                    "MAINTENANCE_STANDARD",
+                    "INSPECTION_STANDARD",
+                    "SAFETY",
+                ],
+            },
+            request=request,
+        )
+
+
+class WorkOrderKnowledgeSnapshotView(APIView):
+    def post(self, request, work_order_id):
+        work_order = get_work_order(work_order_id)
+        ensure_assigned(work_order)
+        serializer = KnowledgeSnapshotCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        snapshot = KnowledgeSnapshot.objects.create(
+            work_order=work_order,
+            catalog_version=serializer.validated_data["catalog_version"],
+            items_json=serializer.validated_data["items"],
+        )
+        return success_response(
+            KnowledgeSnapshotSerializer(snapshot).data,
+            message="知识快照保存成功",
+            request=request,
+            status=201,
+        )
+
+
+class WorkOrderEmailContextView(APIView):
+    def get(self, request, work_order_id):
+        work_order = get_work_order(work_order_id)
+        ensure_assigned(work_order)
+        if not work_order.knowledge_snapshots.exists():
+            raise ProbeAPIException(
+                "KNOWLEDGE_SNAPSHOT_REQUIRED",
+                "生成邮件上下文前必须先回写知识快照",
+                status_code=409,
+            )
+        alert = work_order.alert
+        return success_response(
+            {
+                "to": [work_order.assigned_employee.email],
+                "subject": f"【MoldGuard】{work_order.work_order_id} 模具保养任务",
+                "template_variables": {
+                    "employee_name": work_order.assigned_employee.employee_name,
+                    "mold_name": work_order.mold.mold_name,
+                    "work_order_id": work_order.work_order_id,
+                    "development_tonnage": work_order.mold.development_tonnage,
+                    "trigger_threshold": alert.threshold_snapshot,
+                    "current_cycle_count": alert.cycle_count_snapshot,
+                },
+            },
+            request=request,
+        )
+
+
+class WorkOrderNotificationView(APIView):
+    def post(self, request, work_order_id):
+        work_order = get_work_order(work_order_id)
+        ensure_assigned(work_order)
+        serializer = NotificationCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        supplied_recipient = serializer.validated_data.get("recipient")
+        expected_recipient = work_order.assigned_employee.email
+        if supplied_recipient and supplied_recipient != expected_recipient:
+            raise ProbeAPIException(
+                "EMPLOYEE_NOT_ASSIGNED",
+                "邮件结果收件人必须是被派工人员",
+                status_code=409,
+            )
+        receipt = NotificationReceipt.objects.create(
+            work_order=work_order,
+            recipient=expected_recipient,
+            status=serializer.validated_data["status"],
+            message_id=serializer.validated_data.get("message_id", ""),
+            error_message=serializer.validated_data.get("error_message", ""),
+            sent_at=serializer.validated_data.get("sent_at"),
+        )
+        return success_response(
+            NotificationReceiptSerializer(receipt).data,
+            message="邮件发送结果已保存",
+            request=request,
+            status=201,
         )

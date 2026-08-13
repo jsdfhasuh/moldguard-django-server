@@ -19,6 +19,14 @@ def new_event_id():
     return _prefixed_id("EVT")
 
 
+def new_snapshot_id():
+    return _prefixed_id("KBS")
+
+
+def new_notification_id():
+    return _prefixed_id("NTF")
+
+
 class Mold(models.Model):
     class MoldType(models.TextChoices):
         INJECTION = "INJECTION", "注塑模具"
@@ -189,3 +197,56 @@ class WorkOrderEvent(models.Model):
 
     def __str__(self):
         return f"{self.event_id} {self.work_order_id} {self.event_type}"
+
+
+class KnowledgeSnapshot(models.Model):
+    snapshot_id = models.CharField(
+        primary_key=True,
+        max_length=40,
+        default=new_snapshot_id,
+        editable=False,
+    )
+    work_order = models.ForeignKey(
+        WorkOrder,
+        on_delete=models.CASCADE,
+        related_name="knowledge_snapshots",
+    )
+    catalog_version = models.CharField(max_length=80)
+    items_json = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "snapshot_id"]
+
+    def __str__(self):
+        return f"{self.snapshot_id} {self.work_order_id}"
+
+
+class NotificationReceipt(models.Model):
+    class Status(models.TextChoices):
+        SENT = "SENT", "发送成功"
+        FAILED = "FAILED", "发送失败"
+
+    notification_id = models.CharField(
+        primary_key=True,
+        max_length=40,
+        default=new_notification_id,
+        editable=False,
+    )
+    work_order = models.ForeignKey(
+        WorkOrder,
+        on_delete=models.CASCADE,
+        related_name="notification_receipts",
+    )
+    recipient = models.EmailField()
+    status = models.CharField(max_length=20, choices=Status.choices)
+    message_id = models.CharField(max_length=160, blank=True, default="")
+    error_message = models.TextField(blank=True, default="")
+    sent_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "notification_id"]
+
+    def __str__(self):
+        return f"{self.notification_id} {self.work_order_id} {self.status}"

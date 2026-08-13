@@ -14,8 +14,12 @@ from .views import (
     WorkOrderAutoAssignView,
     WorkOrderCandidatesView,
     WorkOrderDetailView,
+    WorkOrderEmailContextView,
     WorkOrderHistoryView,
+    WorkOrderKnowledgeContextView,
+    WorkOrderKnowledgeSnapshotView,
     WorkOrderListView,
+    WorkOrderNotificationView,
 )
 
 app_name = "platform_probe"
@@ -63,5 +67,25 @@ urlpatterns = [
         "work-orders/<str:work_order_id>/history",
         WorkOrderHistoryView.as_view(),
         name="work-order-history",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/knowledge-context",
+        WorkOrderKnowledgeContextView.as_view(),
+        name="work-order-knowledge-context",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/knowledge-snapshot",
+        WorkOrderKnowledgeSnapshotView.as_view(),
+        name="work-order-knowledge-snapshot",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/email-context",
+        WorkOrderEmailContextView.as_view(),
+        name="work-order-email-context",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/notifications",
+        WorkOrderNotificationView.as_view(),
+        name="work-order-notifications",
     ),
 ]
