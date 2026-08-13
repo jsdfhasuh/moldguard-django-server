@@ -1,0 +1,91 @@
+{% load static %}
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MoldGuard 报工 {{ work_order.work_order_id }}</title>
+  <link rel="stylesheet" href="{% static 'report.css' %}">
+</head>
+<body>
+<main class="page-shell">
+  <header class="hero">
+    <p class="eyebrow">MOLDGUARD · MOLDGUARD-KB-1.2</p>
+    <h1>模具保养报工</h1>
+    <p class="status-pill">{{ work_order.get_status_display }}</p>
+  </header>
+
+  {% if page_error %}<div class="notice error" role="alert">{{ page_error }}</div>{% endif %}
+
+  <section class="card facts">
+    <h2>工单与模具</h2>
+    <dl>
+      <div><dt>工单编号</dt><dd>{{ work_order.work_order_id }}</dd></div>
+      <div><dt>模具</dt><dd>{{ work_order.mold.mold_id }} · {{ work_order.mold.mold_name }}</dd></div>
+      <div><dt>模具类型</dt><dd>{{ work_order.mold.get_mold_type_display }}</dd></div>
+      <div><dt>位置</dt><dd>{{ work_order.mold.level_1_location|default:"—" }} / {{ work_order.mold.level_2_location|default:"—" }}</dd></div>
+      <div><dt>触发规则</dt><dd>{{ work_order.primary_rule_id }}</dd></div>
+      <div><dt>触发依据</dt><dd>{{ work_order.trigger_reason }}</dd></div>
+      <div><dt>被派工人员</dt><dd>{% if work_order.assignee %}{{ work_order.assignee.employee_name }}{% else %}—{% endif %}</dd></div>
+      <div><dt>要求完成时间</dt><dd>{{ work_order.required_finish_at|date:"Y-m-d H:i"|default:"未配置" }}</dd></div>
+      {% if work_order.standard_hours != None %}<div><dt>标准工时</dt><dd>{{ work_order.standard_hours }} 小时</dd></div>{% endif %}
+      <div><dt>知识版本</dt><dd>{{ work_order.knowledge_snapshot_version }}</dd></div>
+      <div class="wide"><dt>知识包哈希</dt><dd class="hash">{{ work_order.knowledge_package_hash|default:"未配置" }}</dd></div>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>点检知识与安全要求</h2>
+    {% for item in knowledge_items %}
+      <article class="knowledge-item">
+        <strong>{{ item.knowledge_id }} · {{ item.item }}</strong>
+        <p>{{ item.criteria }}</p>
+        <small>方法：{{ item.method }}{% if item.required %} · 必检{% endif %}</small>
+      </article>
+    {% empty %}<p>暂无知识包。</p>{% endfor %}
+    {% if safety_notes %}
+      <h3>安全要求</h3>
+      <ul>{% for note in safety_notes %}<li>{{ note }}</li>{% endfor %}</ul>
+    {% endif %}
+  </section>
+
+  {% if form and not page_error %}
+  <form method="post" class="report-form" novalidate>
+    {% csrf_token %}
+    {{ form.submission_id }}
+    {{ form.report_form_schema_version }}
+    {{ form.knowledge_package_hash }}
+    {% if form.non_field_errors %}<div class="notice error">{{ form.non_field_errors }}</div>{% endif %}
+
+    <section class="card">
+      <h2>逐项点检</h2>
+      {% for inspection in form.inspection_fields %}
+      <fieldset class="inspection">
+        <legend>{{ inspection.knowledge.knowledge_id }} · {{ inspection.knowledge.item }}</legend>
+        <p>{{ inspection.knowledge.criteria }}</p>
+        {{ inspection.result_field.errors }}{{ inspection.result_field }}
+        <label>{{ inspection.reason_field.label }}{{ inspection.reason_field }}{{ inspection.reason_field.errors }}</label>
+        <label>{{ inspection.note_field.label }}{{ inspection.note_field }}{{ inspection.note_field.errors }}</label>
+      </fieldset>
+      {% endfor %}
+    </section>
+
+    <section class="card form-grid">
+      <h2>报工内容</h2>
+      {% for field in form.visible_fields %}
+        {% if not field.name|slice:":11" == "inspection_" %}
+          <label class="field {% if field.errors %}has-error{% endif %}">
+            <span>{{ field.label }}</span>{{ field }}
+            {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+            {{ field.errors }}
+          </label>
+        {% endif %}
+      {% endfor %}
+      <button type="submit">提交报工情况</button>
+      <p class="identity-note">本页面使用工单已派工人员作为报工人，不要求登录；请勿转发报工链接。</p>
+    </section>
+  </form>
+  {% endif %}
+</main>
+</body>
+</html>

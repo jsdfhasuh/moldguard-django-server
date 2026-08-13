@@ -134,6 +134,13 @@ def submit_report(work_order_id, payload, *, client_request_id):
     alert = None
     if work_order.alert_id:
         alert = Alert.objects.select_for_update().get(pk=work_order.alert_id)
+    parent_work_order = None
+    if work_order.parent_work_order_id:
+        parent_work_order = (
+            WorkOrder.objects.select_for_update()
+            .select_related("assignee", "alert")
+            .get(pk=work_order.parent_work_order_id)
+        )
     known_items = _validate_common(work_order, payload)
     old_status = work_order.status
     now = timezone.now()
@@ -228,8 +235,42 @@ def submit_report(work_order_id, payload, *, client_request_id):
         request_key=f"report-event:{client_request_id}",
         occurred_at=now,
     )
+    if work_order.work_order_type == WorkOrder.Type.REPAIR_TASK:
+        if parent_work_order is None:
+            raise BusinessError(
+                "INVALID_REPAIR_RELATION", "修模任务缺少原保养工单", status_code=409
+            )
+        if parent_work_order.status != WorkOrder.Status.REPAIR_LINKED:
+            raise BusinessError(
+                "INVALID_WORK_ORDER_STATE",
+                "原保养工单不在等待修模完成状态",
+                status_code=409,
+            )
+        parent_old_status = parent_work_order.status
+        parent_work_order.status = WorkOrder.Status.IN_PROGRESS
+        parent_work_order.abnormal_next_action = ""
+        parent_work_order.save(update_fields=["status", "abnormal_next_action", "updated_at"])
+        WorkOrderEvent.objects.create(
+            event_id=new_identifier("EVT"),
+            work_order=parent_work_order,
+            event_type="REPAIR_COMPLETED",
+            from_status=parent_old_status,
+            to_status=parent_work_order.status,
+            operator_id=parent_work_order.assignee_id or "",
+            event_data_json={
+                "repair_work_order_id": work_order.work_order_id,
+                "repair_record_id": MaintenanceRecord.objects.get(work_order=work_order).record_id,
+                "cycle_reset": False,
+            },
+            request_key=f"repair-completed:{client_request_id}",
+            occurred_at=now,
+        )
     next_due_count, next_due_time = _next_due(mold, now)
-    return _report_result(work_order, old_status, next_due_count, next_due_time)
+    result = _report_result(work_order, old_status, next_due_count, next_due_time)
+    if parent_work_order is not None:
+        result["parent_work_order_id"] = parent_work_order.work_order_id
+        result["parent_work_order_status"] = parent_work_order.status
+    return result
 
 
 def _report_result(work_order, old_status, next_due_count, next_due_time):

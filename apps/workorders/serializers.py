@@ -8,6 +8,18 @@ class AssignSerializer(serializers.Serializer):
     employee_id = serializers.CharField(max_length=64)
 
 
+class ClientRequestSerializer(serializers.Serializer):
+    client_request_id = serializers.CharField(max_length=120)
+
+
+class PauseSerializer(ClientRequestSerializer):
+    reason = serializers.CharField(max_length=2000, required=False, allow_blank=True, default="")
+
+
+class RemarksSerializer(ClientRequestSerializer):
+    remarks = serializers.CharField(max_length=2000, required=False, allow_blank=True, default="")
+
+
 class KnowledgeItemSerializer(serializers.Serializer):
     knowledge_id = serializers.CharField(max_length=120)
     item = serializers.CharField(max_length=500)

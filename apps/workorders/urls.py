@@ -1,20 +1,31 @@
 from django.urls import path
 
 from apps.workorders.views import (
+    ContinueProcessingView,
+    CreateRepairTaskView,
     EmailContextView,
     EmailResultView,
     KnowledgeContextView,
     KnowledgeView,
+    RepairCompletedView,
+    TrackingScanView,
     WorkOrderAssignView,
+    WorkOrderAutoAssignView,
     WorkOrderCandidatesView,
     WorkOrderDetailView,
     WorkOrderListView,
+    WorkOrderOverdueView,
+    WorkOrderPauseView,
     WorkOrderReportView,
+    WorkOrderResumeView,
+    WorkOrderStartView,
     WorkOrderTimelineView,
 )
 
 urlpatterns = [
     path("work-orders", WorkOrderListView.as_view(), name="work-order-list"),
+    path("work-orders/overdue", WorkOrderOverdueView.as_view(), name="work-order-overdue"),
+    path("tracking/scan", TrackingScanView.as_view(), name="tracking-scan"),
     path(
         "work-orders/<str:work_order_id>",
         WorkOrderDetailView.as_view(),
@@ -29,6 +40,26 @@ urlpatterns = [
         "work-orders/<str:work_order_id>/assign",
         WorkOrderAssignView.as_view(),
         name="work-order-assign",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/auto-assign",
+        WorkOrderAutoAssignView.as_view(),
+        name="work-order-auto-assign",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/start",
+        WorkOrderStartView.as_view(),
+        name="work-order-start",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/pause",
+        WorkOrderPauseView.as_view(),
+        name="work-order-pause",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/resume",
+        WorkOrderResumeView.as_view(),
+        name="work-order-resume",
     ),
     path(
         "work-orders/<str:work_order_id>/timeline",
@@ -59,5 +90,20 @@ urlpatterns = [
         "work-orders/<str:work_order_id>/report",
         WorkOrderReportView.as_view(),
         name="work-order-report",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/continue-processing",
+        ContinueProcessingView.as_view(),
+        name="continue-processing",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/create-repair-task",
+        CreateRepairTaskView.as_view(),
+        name="create-repair-task",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/repair-completed",
+        RepairCompletedView.as_view(),
+        name="repair-completed",
     ),
 ]

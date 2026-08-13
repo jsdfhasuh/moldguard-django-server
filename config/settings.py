@@ -8,6 +8,9 @@ DEBUG = os.getenv("DJANGO_DEBUG", "true").lower() == "true"
 ALLOWED_HOSTS = [
     item.strip() for item in os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",") if item.strip()
 ]
+CSRF_TRUSTED_ORIGINS = [
+    item.strip() for item in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if item.strip()
+]
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
@@ -23,8 +26,10 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "apps.common.middleware.RequestIDMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -72,9 +77,18 @@ LANGUAGE_CODE = "zh-hans"
 TIME_ZONE = "Asia/Shanghai"
 USE_I18N = True
 USE_TZ = True
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [BASE_DIR / "static"]
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],
@@ -104,3 +118,4 @@ MOLDGUARD_PUBLIC_BASE_URL = os.getenv("MOLDGUARD_PUBLIC_BASE_URL", "http://127.0
 )
 MOLDGUARD_KNOWLEDGE_VERSION = os.getenv("MOLDGUARD_KNOWLEDGE_VERSION", "MOLDGUARD-KB-1.2")
 MOLDGUARD_REPORT_SCHEMA_VERSION = os.getenv("MOLDGUARD_REPORT_SCHEMA_VERSION", "REPORT-FORM-1.1")
+MOLDGUARD_ABNORMAL_OVERDUE_HOURS = int(os.getenv("MOLDGUARD_ABNORMAL_OVERDUE_HOURS", "4"))

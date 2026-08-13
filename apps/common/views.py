@@ -1,3 +1,5 @@
+import os
+
 from django.conf import settings
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
@@ -35,10 +37,10 @@ class MetaView(EnvelopeAPIView):
                 "version": "1.0.0",
                 "knowledge_snapshot_version": settings.MOLDGUARD_KNOWLEDGE_VERSION,
                 "report_form_schema_version": settings.MOLDGUARD_REPORT_SCHEMA_VERSION,
-                "default_port": 18080,
+                "default_port": int(os.getenv("MOLDGUARD_HOST_PORT", "18081")),
                 "authentication_required": False,
                 "data_classification": "DEMO_ONLY",
-                "implementation_status": "BACKEND_P0_IMPLEMENTED_AWAITING_TEST_DEBUG",
+                "implementation_status": "COMPETITION_FEATURES_IMPLEMENTED_AWAITING_DEPLOYMENT",
             },
             request=request,
         )

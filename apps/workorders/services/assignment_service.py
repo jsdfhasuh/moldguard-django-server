@@ -118,3 +118,25 @@ def assign_work_order(work_order_id, employee_id, *, client_request_id):
         "report_button_text": "提交报工情况",
         "report_form_schema_version": work_order.report_form_schema_version,
     }
+
+
+@transaction.atomic
+def auto_assign_work_order(work_order_id, *, client_request_id):
+    try:
+        work_order = (
+            WorkOrder.objects.select_for_update().select_related("mold").get(pk=work_order_id)
+        )
+    except WorkOrder.DoesNotExist:
+        raise BusinessError("WORK_ORDER_NOT_FOUND", "工单不存在", status_code=404) from None
+    if work_order.status != WorkOrder.Status.PENDING_ASSIGNMENT:
+        raise BusinessError("INVALID_WORK_ORDER_STATE", "当前工单状态不可派工", status_code=409)
+    candidates = eligible_candidates(work_order)
+    if not candidates:
+        raise BusinessError("NO_ASSIGNMENT_CANDIDATE", "没有符合条件的候选人员", status_code=409)
+    result = assign_work_order(
+        work_order_id,
+        candidates[0].employee_id,
+        client_request_id=client_request_id,
+    )
+    result["auto_assigned"] = True
+    return result

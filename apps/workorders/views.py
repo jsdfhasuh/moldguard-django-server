@@ -9,13 +9,23 @@ from apps.common.views import EnvelopeAPIView
 from apps.workorders.models import WorkOrder
 from apps.workorders.serializers import (
     AssignSerializer,
+    ClientRequestSerializer,
     EmailResultSerializer,
     KnowledgeSerializer,
+    PauseSerializer,
+    RemarksSerializer,
     ReportSerializer,
 )
 from apps.workorders.services.assignment_service import (
     assign_work_order,
+    auto_assign_work_order,
     candidate_data,
+)
+from apps.workorders.services.execution_service import (
+    continue_processing,
+    pause_work_order,
+    resume_work_order,
+    start_work_order,
 )
 from apps.workorders.services.knowledge_service import (
     email_context,
@@ -24,7 +34,12 @@ from apps.workorders.services.knowledge_service import (
     save_knowledge_package,
 )
 from apps.workorders.services.presentation import work_order_data
+from apps.workorders.services.repair_service import (
+    completed_repair_result,
+    create_repair_task,
+)
 from apps.workorders.services.report_service import submit_report
+from apps.workorders.services.tracking_service import list_overdue, scan_overdue
 
 
 def get_work_order(work_order_id):
@@ -98,6 +113,80 @@ class WorkOrderAssignView(EnvelopeAPIView):
                 work_order_id,
                 payload["employee_id"],
                 client_request_id=payload["client_request_id"],
+            ),
+        )
+
+
+class WorkOrderAutoAssignView(EnvelopeAPIView):
+    @extend_schema(request=ClientRequestSerializer, responses=OpenAPIEnvelopeSerializer)
+    def post(self, request, work_order_id):
+        serializer = ClientRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+        return idempotent_response(
+            request,
+            action="AUTO_ASSIGN_WORK_ORDER",
+            object_id=work_order_id,
+            payload=payload,
+            message="自动派工成功",
+            operation=lambda: auto_assign_work_order(
+                work_order_id, client_request_id=payload["client_request_id"]
+            ),
+        )
+
+
+class WorkOrderStartView(EnvelopeAPIView):
+    @extend_schema(request=ClientRequestSerializer, responses=OpenAPIEnvelopeSerializer)
+    def post(self, request, work_order_id):
+        serializer = ClientRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+        return idempotent_response(
+            request,
+            action="START_WORK_ORDER",
+            object_id=work_order_id,
+            payload=payload,
+            message="工单已开工",
+            operation=lambda: start_work_order(
+                work_order_id, client_request_id=payload["client_request_id"]
+            ),
+        )
+
+
+class WorkOrderPauseView(EnvelopeAPIView):
+    @extend_schema(request=PauseSerializer, responses=OpenAPIEnvelopeSerializer)
+    def post(self, request, work_order_id):
+        serializer = PauseSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+        return idempotent_response(
+            request,
+            action="PAUSE_WORK_ORDER",
+            object_id=work_order_id,
+            payload=payload,
+            message="工单已暂停",
+            operation=lambda: pause_work_order(
+                work_order_id,
+                client_request_id=payload["client_request_id"],
+                reason=payload["reason"],
+            ),
+        )
+
+
+class WorkOrderResumeView(EnvelopeAPIView):
+    @extend_schema(request=ClientRequestSerializer, responses=OpenAPIEnvelopeSerializer)
+    def post(self, request, work_order_id):
+        serializer = ClientRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+        return idempotent_response(
+            request,
+            action="RESUME_WORK_ORDER",
+            object_id=work_order_id,
+            payload=payload,
+            message="工单已恢复",
+            operation=lambda: resume_work_order(
+                work_order_id, client_request_id=payload["client_request_id"]
             ),
         )
 
@@ -196,3 +285,101 @@ class WorkOrderReportView(EnvelopeAPIView):
                 client_request_id=payload["client_request_id"],
             ),
         )
+
+
+class ContinueProcessingView(EnvelopeAPIView):
+    @extend_schema(request=RemarksSerializer, responses=OpenAPIEnvelopeSerializer)
+    def post(self, request, work_order_id):
+        serializer = RemarksSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+        return idempotent_response(
+            request,
+            action="CONTINUE_ABNORMAL_PROCESSING",
+            object_id=work_order_id,
+            payload=payload,
+            message="工单已恢复处理",
+            operation=lambda: continue_processing(
+                work_order_id,
+                client_request_id=payload["client_request_id"],
+                remarks=payload["remarks"],
+            ),
+        )
+
+
+class CreateRepairTaskView(EnvelopeAPIView):
+    @extend_schema(request=RemarksSerializer, responses=OpenAPIEnvelopeSerializer)
+    def post(self, request, work_order_id):
+        serializer = RemarksSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+        return idempotent_response(
+            request,
+            action="CREATE_REPAIR_TASK",
+            object_id=work_order_id,
+            payload=payload,
+            message="关联修模任务已创建",
+            operation=lambda: create_repair_task(
+                work_order_id,
+                client_request_id=payload["client_request_id"],
+                remarks=payload["remarks"],
+            ),
+        )
+
+
+class RepairCompletedView(EnvelopeAPIView):
+    @extend_schema(responses=OpenAPIEnvelopeSerializer)
+    def post(self, request, work_order_id):
+        work_order = get_work_order(work_order_id)
+        if work_order.work_order_type != WorkOrder.Type.REPAIR_TASK:
+            raise BusinessError("INVALID_WORK_ORDER_TYPE", "目标工单不是修模任务", status_code=409)
+        if "report_type" in request.data:
+            serializer = ReportSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            payload = serializer.validated_data
+            if payload["report_type"] != WorkOrder.ReportType.NORMAL:
+                raise BusinessError("VALIDATION_ERROR", "repair-completed只接受NORMAL报工")
+            return idempotent_response(
+                request,
+                action="SUBMIT_WORK_ORDER_REPORT",
+                object_id=work_order_id,
+                payload=payload,
+                message="修模任务已完成",
+                operation=lambda: submit_report(
+                    work_order_id,
+                    payload,
+                    client_request_id=payload["client_request_id"],
+                ),
+            )
+        serializer = ClientRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+        return idempotent_response(
+            request,
+            action="CONFIRM_REPAIR_COMPLETED",
+            object_id=work_order_id,
+            payload=payload,
+            message="修模任务完成状态已确认",
+            operation=lambda: completed_repair_result(get_work_order(work_order_id)),
+        )
+
+
+class TrackingScanView(EnvelopeAPIView):
+    @extend_schema(request=ClientRequestSerializer, responses=OpenAPIEnvelopeSerializer)
+    def post(self, request):
+        serializer = ClientRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+        return idempotent_response(
+            request,
+            action="TRACKING_SCAN",
+            object_id="ALL_WORK_ORDERS",
+            payload=payload,
+            message="过程追踪扫描完成",
+            operation=scan_overdue,
+        )
+
+
+class WorkOrderOverdueView(EnvelopeAPIView):
+    def get(self, request):
+        return success_response(list_overdue(), request=request)
