@@ -15,7 +15,7 @@
           │ HTTPS + JSON
           ▼
 MoldGuard Django Server
-├─ 模具台账、寿命和闲置状态
+├─ 模具台账、开发吨位、模次和位置
 ├─ 版本化规则、审批和冲突治理
 ├─ 保养预警与保养计划
 ├─ 计划确认、关闭机会和送模
@@ -27,37 +27,64 @@ MoldGuard Django Server
 └─ 权限、幂等、事务和审计
 ```
 
+## 已确认的当前自动保养触发规则
+
+状态：`INTERNAL_CONFIRMED`
+
+当前实际业务对钣金和注塑模具**不区分一级、二级、三级保养**。自动保养提醒统一按照模具开发吨位执行：
+
+| 开发吨位 | 自动提醒周期 |
+|---:|---:|
+| `<1000T` | 每累计生产50,000模次 |
+| `>=1000T` | 每累计生产30,000模次 |
+
+以下内容只作为历史标准或保养作业知识参考，不参与当前自动提醒、自动计划和自动派单：
+
+```text
+精密/普通/小型模具的3万、5万、10万模次
+一保、二保、三保相关模次
+零件级历史周期
+外部A/B/C参考
+```
+
+权威确认记录：
+
+- [钣金与注塑模具自动保养触发规则确认](docs/decisions/2026-08-13-maintenance-trigger-rule-confirmation.md)
+- [V3.2自动保养触发规则修订](docs/plans/2026-08-13-moldguard-django-v3.2-trigger-rule-amendment.md)
+
 ## 知识库基线
 
 当前对齐：
 
 ```text
 MoldGuard_模具保养知识库_上传包V0.1.zip
-知识条目：353 条
-点检标准：22 条
-故障与标准工时：78 条
+知识条目：353条
+点检标准：22条
+故障与标准工时：78条
 ```
 
-知识库当前没有 `INTERNAL_CONFIRMED` 条目，并存在注塑/钣金多版本阈值、缺失字段和待确认转写。参赛使用独立 `DEMO_RULESET_V1` 和知识条目使用白名单；不得把全部 `INTERNAL_SOURCE` 自动当成企业正式规则。
+知识包V0.1原有条目仍保留原始权威标签。当前正式吨位规则通过独立业务确认记录建立，不静默修改历史知识来源。
+
+知识库中的冲突阈值和保养等级资料可以用于检索、解释、点检和作业指导，但不得覆盖Django返回的当前触发规则。
 
 ## 系统分工
 
 ### 智能体平台负责
 
 - 用户自然语言交互；
-- 工作流和 Agent 编排；
+- 工作流和Agent编排；
 - 点检、操作、安全、储放、故障等知识库；
-- RAG 检索和来源引用；
-- LLM 生成预警、任务、催办、验收和分析说明；
+- RAG检索和来源引用；
+- LLM生成预警、任务、催办、验收和分析说明；
 - 展示候选人员并让主管最终确认；
 - 组装含点检知识的任务邮件；
 - 发送邮件；
 - 回写知识快照和邮件结果。
 
-### Django 负责
+### Django负责
 
-- 模具数据、模次、位置、吨位、类别、寿命和闲置状态；
-- 规则版本、来源、审批、冲突和适用范围；
+- 模具数据、模次、开发吨位、位置、寿命和闲置状态；
+- 当前正式吨位规则及其他规则的版本、来源、审批、冲突和适用范围；
 - 保养提醒、寿命提醒和闲置提醒分离；
 - 自动/手动保养计划；
 - 计划确认、关闭次数、送模和要求交模时间；
@@ -68,57 +95,62 @@ MoldGuard_模具保养知识库_上传包V0.1.zip
 - 模具履历、周期复位、工时、完成率、超时和人员负荷；
 - API Key、操作人权限、幂等、事务和审计。
 
-### Django 不负责
+### Django不负责
 
-- 自建向量知识库、Embedding 或 Rerank；
+- 自建向量知识库、Embedding或Rerank；
 - 调用大模型；
 - SMTP、邮件模板和邮件发送；
 - 企业微信、钉钉或短信发送；
 - 独立前端；
-- 未经审批自动采用知识库冲突规则；
-- 对真实 MES、ERP 或排产系统执行生产写入。
+- 让知识库历史阈值覆盖当前正式吨位规则；
+- 对真实MES、ERP或排产系统执行生产写入。
 
 ## 当前状态
 
 ```text
-技术计划：V3.1 TECHNICAL_BASELINE
-负责人决策：OWNER_DECISIONS_REQUIRED
+完整技术计划：V3.1 TECHNICAL_BASELINE
+触发规则修订：V3.2 NORMATIVE_AMENDMENT
+已确认业务规则：MAINT_TRIGGER_TONNAGE_V1 / INTERNAL_CONFIRMED
+剩余负责人决策：OWNER_DECISIONS_REQUIRED
 知识库基线：MoldGuard KB V0.1
 系统状态：NOT_IMPLEMENTED
-下一步：完成 D01—D18 决策 + Gate -1 平台验证
+下一步：确认D03、D07—D18 + Gate -1平台验证
 建议实施分支：agent/django-full-workflow-v1
 ```
 
-V3.1 已形成完整技术方案，但知识库仍有多版本规则和业务口径未确认。正式编码前必须先完成负责人决策清单；未确认的条目不能被实现为自动业务规则。决策完成后再将计划恢复为 `FINAL_FROZEN_FOR_COMPETITION`。
+已确认的吨位触发规则、开发吨位字段、3万/5万边界和“不区分保养等级”可以进入Phase 0合同与测试设计。其余未确认业务不得被开发人员或LLM自行补齐。
 
 ## 权威文档
 
-- [负责人决策清单](docs/decisions/2026-08-12-owner-decision-checklist.md)
-- [完整实施计划 V3.1](docs/plans/2026-08-12-moldguard-django-implementation-plan.md)
-- [智能体平台与 Django 关系说明 V1.1](docs/architecture/2026-08-12-agent-platform-django-relationship.md)
-- [知识库与 Django 对齐说明](docs/knowledge/2026-08-12-moldguard-kb-django-alignment.md)
+- [负责人决策清单V1.1](docs/decisions/2026-08-13-owner-decision-checklist-v1.1.md)
+- [自动保养触发规则确认记录](docs/decisions/2026-08-13-maintenance-trigger-rule-confirmation.md)
+- [V3.2触发规则修订](docs/plans/2026-08-13-moldguard-django-v3.2-trigger-rule-amendment.md)
+- [完整实施计划V3.1](docs/plans/2026-08-12-moldguard-django-implementation-plan.md)
+- [智能体平台与Django关系说明V1.1](docs/architecture/2026-08-12-agent-platform-django-relationship.md)
+- [知识库与Django对齐说明](docs/knowledge/2026-08-12-moldguard-kb-django-alignment.md)
 - [智能体业务场景说明](docs/business/2026-08-12-moldguard-business-scenarios.md)
 
-早期只读方案仅用于历史对照：
+历史文档：
 
-- [已废止的只读查询 API 方案](docs/plans/2026-08-12-moldguard-django-query-api-only-plan.md)
+- [负责人决策清单V1.0](docs/decisions/2026-08-12-owner-decision-checklist.md)
+- [已废止的只读查询API方案](docs/plans/2026-08-12-moldguard-django-query-api-only-plan.md)
 
 ## 技术基线
 
 - Python 3.12
 - Django 5.2 LTS
-- Django REST Framework 3.16 系列
+- Django REST Framework 3.16系列
 - PostgreSQL 16
-- API 前缀 `/api/v1`
+- API前缀 `/api/v1`
 - Docker Compose + Nginx + Gunicorn
-- Django 内部端口 `18080`
-- 公网 HTTPS `443`
+- Django内部端口 `18080`
+- 公网HTTPS `443`
 - `X-API-Key` + 操作人权限 + `Idempotency-Key`
 
 ## 参赛主闭环
 
 ```text
-预警扫描
+按开发吨位和周期模次扫描预警
 → 待确认保养计划
 → 主管确认 / 关闭
 → 排产与送模
@@ -131,4 +163,4 @@ V3.1 已形成完整技术方案，但知识库仍有多版本规则和业务口
 → 履历更新、周期复位和统计分析
 ```
 
-业务代码必须在 `agent/django-full-workflow-v1` 分支实施；D01—D18与平台Gate -1未通过前，不进入全量编码。
+业务代码必须在 `agent/django-full-workflow-v1` 分支实施，并按V3.1与V3.2共同组成的当前基线分阶段验收。
