@@ -1,0 +1,122 @@
+{
+  "molds": [
+    {
+      "mold_id": "MOLD-TEST-001",
+      "mold_name": "前壳体注塑模",
+      "mold_type": "INJECTION",
+      "status": "IN_PRODUCTION",
+      "development_tonnage": 850,
+      "current_count": 150200,
+      "cycle_baseline_count": 100000,
+      "cycle_baseline_months_ago": 1,
+      "last_production_days_ago": 1
+    },
+    {
+      "mold_id": "MOLD-TEST-002",
+      "mold_name": "加强板钣金模",
+      "mold_type": "SHEET_METAL",
+      "status": "IN_PRODUCTION",
+      "development_tonnage": 1200,
+      "current_count": 230000,
+      "cycle_baseline_count": 200000,
+      "cycle_baseline_months_ago": 1,
+      "last_production_days_ago": 2
+    },
+    {
+      "mold_id": "MOLD-TEST-003",
+      "mold_name": "两个月提醒注塑模",
+      "mold_type": "INJECTION",
+      "status": "IN_STORAGE",
+      "development_tonnage": 850,
+      "current_count": 110000,
+      "cycle_baseline_count": 100000,
+      "cycle_baseline_months_ago": 3,
+      "last_production_days_ago": 20
+    },
+    {
+      "mold_id": "MOLD-TEST-004",
+      "mold_name": "长期无产量注塑模",
+      "mold_type": "INJECTION",
+      "status": "IN_STORAGE",
+      "development_tonnage": 850,
+      "current_count": 180000,
+      "cycle_baseline_count": 100000,
+      "cycle_baseline_months_ago": 30,
+      "last_production_years_ago": 3
+    },
+    {
+      "mold_id": "MOLD-TEST-005",
+      "mold_name": "未到阈值钣金模",
+      "mold_type": "SHEET_METAL",
+      "status": "IN_PRODUCTION",
+      "development_tonnage": 900,
+      "current_count": 149999,
+      "cycle_baseline_count": 100000,
+      "cycle_baseline_months_ago": 1,
+      "last_production_days_ago": 1
+    },
+    {
+      "mold_id": "MOLD-TEST-006",
+      "mold_name": "缺少开发吨位注塑模",
+      "mold_type": "INJECTION",
+      "status": "IN_PRODUCTION",
+      "development_tonnage": null,
+      "current_count": 120000,
+      "cycle_baseline_count": 100000,
+      "cycle_baseline_months_ago": 1,
+      "last_production_days_ago": 1
+    },
+    {
+      "mold_id": "MOLD-TEST-007",
+      "mold_name": "千吨边界注塑模",
+      "mold_type": "INJECTION",
+      "status": "IN_PRODUCTION",
+      "development_tonnage": 1000,
+      "current_count": 330000,
+      "cycle_baseline_count": 300000,
+      "cycle_baseline_months_ago": 1,
+      "last_production_days_ago": 1
+    }
+  ],
+  "employees": [
+    {
+      "employee_id": "EMP-001",
+      "employee_name": "测试保养员甲",
+      "email_env": "PROBE_EMPLOYEE_1_EMAIL",
+      "default_email": "maintainer-injection@example.com",
+      "team": "注塑保养组",
+      "skill_tags": ["INJECTION"],
+      "available": true,
+      "current_load": 1
+    },
+    {
+      "employee_id": "EMP-002",
+      "employee_name": "测试保养员乙",
+      "email_env": "PROBE_EMPLOYEE_2_EMAIL",
+      "default_email": "maintainer-sheet@example.com",
+      "team": "钣金保养组",
+      "skill_tags": ["SHEET_METAL"],
+      "available": true,
+      "current_load": 1
+    },
+    {
+      "employee_id": "EMP-003",
+      "employee_name": "测试保养员丙",
+      "default_email": "maintainer-unavailable@example.com",
+      "team": "综合保养组",
+      "skill_tags": ["INJECTION", "SHEET_METAL"],
+      "available": false,
+      "current_load": 0
+    },
+    {
+      "employee_id": "EMP-004",
+      "employee_name": "测试保养员丁",
+      "email_env": "PROBE_EMPLOYEE_4_EMAIL",
+      "default_email": "maintainer-shared@example.com",
+      "team": "综合保养组",
+      "skill_tags": ["INJECTION", "SHEET_METAL"],
+      "available": true,
+      "current_load": 5
+    }
+  ]
+}
