@@ -1,0 +1,38 @@
+{
+  "by_mold": {
+    "DEMO-INJ-COUNT-TIME": {
+      "standard_hours": "6.00",
+      "required_finish_hours": 24
+    }
+  },
+  "by_rule": {
+    "INJ-COUNT-050K": {
+      "standard_hours": "5.00",
+      "required_finish_hours": 24
+    },
+    "INJ-COUNT-030K": {
+      "standard_hours": "6.00",
+      "required_finish_hours": 24
+    },
+    "INJ-TIME-2M": {
+      "standard_hours": "4.00",
+      "required_finish_hours": 48
+    },
+    "STAMP-FORM-150K": {
+      "standard_hours": "8.00",
+      "required_finish_hours": 48
+    },
+    "STAMP-PUNCH-400K": {
+      "standard_hours": "10.00",
+      "required_finish_hours": 48
+    },
+    "STAMP-PROG-400K": {
+      "standard_hours": "12.00",
+      "required_finish_hours": 72
+    },
+    "STAMP-SIDE-400K": {
+      "standard_hours": "12.00",
+      "required_finish_hours": 72
+    }
+  }
+}
