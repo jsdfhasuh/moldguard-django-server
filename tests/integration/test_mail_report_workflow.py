@@ -2,7 +2,12 @@ import pytest
 from django.test import Client
 
 from apps.workorders.models import WorkOrder
-from tests.helpers import assign_work_order, save_knowledge, scan_work_order
+from tests.helpers import (
+    assign_work_order,
+    save_knowledge,
+    scan_work_order,
+    send_assignment_email,
+)
 from tests.web.test_report_page import html_normal_payload
 
 
@@ -22,19 +27,8 @@ def test_public_mail_link_html_report_and_whitenoise_contract(
     email = api_client.get(f"/api/v1/work-orders/{work_order_id}/email-context")
     assert email.data["data"]["report_url"] == assignment["report_url"]
     assert email.data["data"]["knowledge_package_hash"] == knowledge["knowledge_package_hash"]
-    sent = api_client.post(
-        f"/api/v1/work-orders/{work_order_id}/email-result",
-        {
-            "client_request_id": "mail-report-integration-sent",
-            "status": "SENT",
-            "message_id": "DEMO-MAIL-WEB-001",
-            "sent_at": "2026-08-13T18:00:00+08:00",
-            "knowledge_package_hash": knowledge["knowledge_package_hash"],
-            "error_message": "",
-        },
-        format="json",
-    )
-    assert sent.status_code == 200
+    sent = send_assignment_email(api_client, work_order_id, "mail-report-integration")
+    assert sent["report_url"] == assignment["report_url"]
     locked = api_client.post(
         f"/api/v1/work-orders/{work_order_id}/knowledge",
         {
@@ -70,9 +64,7 @@ def test_public_mail_link_html_report_and_whitenoise_contract(
 
 
 @pytest.mark.django_db
-def test_email_sent_work_order_rejects_late_email_result_after_report(
-    api_client, seeded_demo, knowledge_payload
-):
+def test_reported_work_order_rejects_send_email(api_client, seeded_demo, knowledge_payload):
     work_order_id, _ = scan_work_order(api_client, "DEMO-INJ-050K", "mail-late")
     assign_work_order(api_client, work_order_id, "DEMO-EMP-INJ", "mail-late")
     knowledge = save_knowledge(api_client, work_order_id, knowledge_payload, "mail-late")
@@ -84,15 +76,8 @@ def test_email_sent_work_order_rejects_late_email_result_after_report(
         format="json",
     )
     late = api_client.post(
-        f"/api/v1/work-orders/{work_order_id}/email-result",
-        {
-            "client_request_id": "mail-late-result",
-            "status": "SENT",
-            "message_id": "TOO-LATE",
-            "sent_at": "2026-08-13T18:00:00+08:00",
-            "knowledge_package_hash": knowledge["knowledge_package_hash"],
-            "error_message": "",
-        },
+        f"/api/v1/work-orders/{work_order_id}/send-email",
+        {"client_request_id": "mail-late-send"},
         format="json",
     )
     assert late.status_code == 409

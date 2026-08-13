@@ -10,6 +10,8 @@ def test_health_and_meta_use_uniform_envelope(api_client):
     assert meta.data["data"]["knowledge_snapshot_version"] == "MOLDGUARD-KB-1.2"
     assert meta.data["data"]["report_form_schema_version"] == "REPORT-FORM-1.1"
     assert meta.data["data"]["data_classification"] == "DEMO_ONLY"
+    assert meta.data["data"]["smtp_backend_configured"] is False
+    assert meta.data["data"]["implementation_status"] == "SMTP_CONFIGURATION_REQUIRED"
     assert meta.data["request_id"].startswith("req-")
 
 

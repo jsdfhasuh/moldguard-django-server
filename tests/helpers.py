@@ -34,6 +34,17 @@ def save_knowledge(api_client, work_order_id, knowledge_payload, suffix):
     return response.data["data"]
 
 
+def send_assignment_email(api_client, work_order_id, suffix):
+    response = api_client.post(
+        f"/api/v1/work-orders/{work_order_id}/send-email",
+        {"client_request_id": f"send-email-{suffix}"},
+        format="json",
+    )
+    assert response.status_code == 200, response.data
+    assert response.data["data"]["new_email_status"] == "SENT"
+    return response.data["data"]
+
+
 def assigned_with_knowledge(api_client, knowledge_payload, *, mold_id, employee_id, suffix):
     work_order_id, alert_id = scan_work_order(api_client, mold_id, suffix)
     assign_work_order(api_client, work_order_id, employee_id, suffix)

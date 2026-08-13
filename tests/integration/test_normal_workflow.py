@@ -7,6 +7,7 @@ from tests.helpers import (
     normal_report_payload,
     save_knowledge,
     scan_work_order,
+    send_assignment_email,
 )
 
 
@@ -23,19 +24,7 @@ def test_complete_normal_p0_workflow(api_client, seeded_demo, knowledge_payload,
     knowledge = save_knowledge(api_client, work_order_id, knowledge_payload, "integration-normal")
     email = api_client.get(f"/api/v1/work-orders/{work_order_id}/email-context")
     assert email.data["data"]["knowledge_package_hash"] == knowledge["knowledge_package_hash"]
-    sent = api_client.post(
-        f"/api/v1/work-orders/{work_order_id}/email-result",
-        {
-            "client_request_id": "integration-normal-email",
-            "status": "SENT",
-            "message_id": "DEMO-MAIL-INTEGRATION-NORMAL",
-            "sent_at": "2026-08-13T16:00:00+08:00",
-            "knowledge_package_hash": knowledge["knowledge_package_hash"],
-            "error_message": "",
-        },
-        format="json",
-    )
-    assert sent.data["data"]["new_email_status"] == "SENT"
+    send_assignment_email(api_client, work_order_id, "integration-normal")
     report = api_client.post(
         f"/api/v1/work-orders/{work_order_id}/report",
         normal_report_payload("integration-normal", knowledge["knowledge_package_hash"]),
@@ -52,7 +41,7 @@ def test_complete_normal_p0_workflow(api_client, seeded_demo, knowledge_payload,
         "WORK_ORDER_CREATED",
         "WORK_ORDER_ASSIGNED",
         "KNOWLEDGE_PACKAGE_SAVED",
-        "EMAIL_RESULT_RECORDED",
+        "EMAIL_SENT",
         "NORMAL_REPORT_COMPLETED",
     ]
     assert WorkOrderEvent.objects.filter(work_order_id=work_order_id).count() == 5

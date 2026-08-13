@@ -8,7 +8,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-from datetime import UTC, datetime
 from html.parser import HTMLParser
 
 
@@ -97,8 +96,14 @@ class SmokeClient:
             raise SmokeFailure(f"GET {path} did not return a successful HTML page")
         return body
 
-    def html_report_normal(self, work_order_id):
-        path = f"/report/{work_order_id}"
+    def html_report_normal(self, work_order_id, report_url):
+        parsed_base = urllib.parse.urlsplit(self.base_url)
+        parsed_report = urllib.parse.urlsplit(report_url)
+        if (parsed_report.scheme, parsed_report.netloc) != (parsed_base.scheme, parsed_base.netloc):
+            raise SmokeFailure("send-email returned a report_url outside the selected base URL")
+        path = parsed_report.path
+        if path != f"/report/{work_order_id}" or parsed_report.query or parsed_report.fragment:
+            raise SmokeFailure("send-email returned an unexpected report_url")
         page = self.html_get(path)
         parser = HiddenInputParser()
         parser.feed(page)
@@ -201,24 +206,29 @@ def save_knowledge(client, work_order_id, run_id):
     return knowledge["knowledge_package_hash"]
 
 
-def record_email_sent(client, work_order_id, digest, run_id):
+def send_assignment_email(client, work_order_id, digest, run_id):
     email = client.json("GET", f"/api/v1/work-orders/{work_order_id}/email-context")
     if email["knowledge_package_hash"] != digest:
         raise SmokeFailure("email context and knowledge hashes differ")
     sent = client.json(
         "POST",
-        f"/api/v1/work-orders/{work_order_id}/email-result",
-        {
-            "client_request_id": request_id(f"email-{work_order_id}", run_id),
-            "status": "SENT",
-            "message_id": f"SMOKE-{run_id}",
-            "sent_at": datetime.now(UTC).isoformat(),
-            "knowledge_package_hash": digest,
-            "error_message": "",
-        },
+        f"/api/v1/work-orders/{work_order_id}/send-email",
+        {"client_request_id": request_id(f"send-email-{work_order_id}", run_id)},
     )
     if sent["new_email_status"] != "SENT":
-        raise SmokeFailure("email result did not reach SENT")
+        raise SmokeFailure("Django SMTP send did not reach SENT")
+    if not sent["email_message_id"] or not sent["email_sent_at"]:
+        raise SmokeFailure("Django SMTP send did not persist Message-ID and sent time")
+    if sent["email_recipient"] != email["assignee_email"]:
+        raise SmokeFailure("Django SMTP recipient differs from the assigned employee")
+    if sent["knowledge_package_hash"] != digest:
+        raise SmokeFailure("Django SMTP result and knowledge hashes differ")
+    detail = client.json("GET", f"/api/v1/work-orders/{work_order_id}")
+    if detail["email_status"] != "SENT":
+        raise SmokeFailure("work order detail did not persist email_status=SENT")
+    if detail["email_message_id"] != sent["email_message_id"]:
+        raise SmokeFailure("work order detail and send-email Message-ID differ")
+    return sent["report_url"]
 
 
 def normal_payload(work_order_id, digest, run_id):
@@ -290,8 +300,8 @@ def run_normal(client, run_id, mold_id="DEMO-INJ-COUNT-TIME"):
     work_order_id = scan(client, mold_id, run_id)
     assign(client, work_order_id, run_id)
     digest = save_knowledge(client, work_order_id, run_id)
-    record_email_sent(client, work_order_id, digest, run_id)
-    client.html_report_normal(work_order_id)
+    report_url = send_assignment_email(client, work_order_id, digest, run_id)
+    client.html_report_normal(work_order_id, report_url)
     verify_completed(client, work_order_id, mold_id)
     client.json("GET", "/api/v1/analytics/summary")
     client.json("GET", "/api/v1/analytics/work-hours")
@@ -303,6 +313,7 @@ def run_continue(client, run_id):
     work_order_id = scan(client, mold_id, run_id)
     assign(client, work_order_id, run_id)
     digest = save_knowledge(client, work_order_id, run_id)
+    send_assignment_email(client, work_order_id, digest, run_id)
     report = client.json(
         "POST",
         f"/api/v1/work-orders/{work_order_id}/report",
@@ -335,6 +346,7 @@ def run_repair(client, run_id):
     parent_id = scan(client, mold_id, run_id)
     assign(client, parent_id, run_id)
     parent_digest = save_knowledge(client, parent_id, run_id)
+    send_assignment_email(client, parent_id, parent_digest, run_id)
     client.json(
         "POST",
         f"/api/v1/work-orders/{parent_id}/report",
@@ -351,6 +363,7 @@ def run_repair(client, run_id):
     repair_id = linked["repair_work_order_id"]
     assign(client, repair_id, f"{run_id}-child")
     repair_digest = save_knowledge(client, repair_id, f"{run_id}-child")
+    send_assignment_email(client, repair_id, repair_digest, f"{run_id}-child")
     repair_report = client.json(
         "POST",
         f"/api/v1/work-orders/{repair_id}/report",
