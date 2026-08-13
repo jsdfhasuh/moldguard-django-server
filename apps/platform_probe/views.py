@@ -3,10 +3,25 @@ from drf_spectacular.utils import extend_schema
 from rest_framework.views import APIView
 
 from .exceptions import ProbeAPIException
-from .models import MaintenanceAlert, Mold
+from .models import MaintenanceAlert, Mold, WorkOrder
 from .responses import success_response
-from .serializers import AlertScanSerializer, MaintenanceAlertSerializer, MoldSerializer
-from .services.alert_service import scan_molds
+from .serializers import (
+    AlertScanSerializer,
+    AssignSerializer,
+    AutoAssignSerializer,
+    CreateWorkOrderSerializer,
+    EmployeeSerializer,
+    MaintenanceAlertSerializer,
+    MoldSerializer,
+    WorkOrderEventSerializer,
+    WorkOrderSerializer,
+)
+from .services.alert_service import create_work_order, scan_molds
+from .services.assignment_service import (
+    assign_employee,
+    auto_assign_employee,
+    candidates_for,
+)
 from .services.trigger_service import calculate_maintenance_status
 
 
@@ -102,3 +117,99 @@ class AlertDetailView(APIView):
         except MaintenanceAlert.DoesNotExist as exc:
             raise ProbeAPIException("ALERT_NOT_FOUND", "预警不存在", status_code=404) from exc
         return success_response(MaintenanceAlertSerializer(alert).data, request=request)
+
+
+def get_work_order(work_order_id):
+    try:
+        return WorkOrder.objects.select_related("alert", "mold", "assigned_employee").get(
+            work_order_id=work_order_id
+        )
+    except WorkOrder.DoesNotExist as exc:
+        raise ProbeAPIException("WORK_ORDER_NOT_FOUND", "工单不存在", status_code=404) from exc
+
+
+class AlertCreateWorkOrderView(APIView):
+    def post(self, request, alert_id):
+        serializer = CreateWorkOrderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        work_order = create_work_order(alert_id)
+        work_order = get_work_order(work_order.work_order_id)
+        return success_response(
+            WorkOrderSerializer(work_order).data,
+            message="工单创建成功",
+            request=request,
+            status=201,
+        )
+
+
+class WorkOrderListView(APIView):
+    def get(self, request):
+        queryset = WorkOrder.objects.select_related("alert", "mold", "assigned_employee")
+        status_value = request.query_params.get("status")
+        mold_id = request.query_params.get("mold_id")
+        if status_value:
+            queryset = queryset.filter(status=status_value)
+        if mold_id:
+            queryset = queryset.filter(mold_id=mold_id)
+        return success_response(
+            {"work_orders": WorkOrderSerializer(queryset, many=True).data},
+            request=request,
+        )
+
+
+class WorkOrderDetailView(APIView):
+    def get(self, request, work_order_id):
+        return success_response(
+            WorkOrderSerializer(get_work_order(work_order_id)).data,
+            request=request,
+        )
+
+
+class WorkOrderCandidatesView(APIView):
+    def get(self, request, work_order_id):
+        work_order = get_work_order(work_order_id)
+        candidates = candidates_for(work_order)
+        return success_response(
+            {
+                "work_order_id": work_order.work_order_id,
+                "mold_type": work_order.mold.mold_type,
+                "candidates": EmployeeSerializer(candidates, many=True).data,
+            },
+            request=request,
+        )
+
+
+class WorkOrderAssignView(APIView):
+    def post(self, request, work_order_id):
+        serializer = AssignSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        work_order = assign_employee(work_order_id, serializer.validated_data["employee_id"])
+        return success_response(
+            WorkOrderSerializer(get_work_order(work_order.work_order_id)).data,
+            message="派工成功",
+            request=request,
+        )
+
+
+class WorkOrderAutoAssignView(APIView):
+    def post(self, request, work_order_id):
+        serializer = AutoAssignSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        work_order = auto_assign_employee(work_order_id)
+        return success_response(
+            WorkOrderSerializer(get_work_order(work_order.work_order_id)).data,
+            message="自动派工成功",
+            request=request,
+        )
+
+
+class WorkOrderHistoryView(APIView):
+    def get(self, request, work_order_id):
+        work_order = get_work_order(work_order_id)
+        return success_response(
+            {
+                "work_order_id": work_order.work_order_id,
+                "events": WorkOrderEventSerializer(work_order.events.all(), many=True).data,
+            },
+            request=request,
+        )

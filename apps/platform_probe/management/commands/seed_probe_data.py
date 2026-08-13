@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import timedelta
 from pathlib import Path
 
@@ -8,7 +9,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
-from apps.platform_probe.models import Mold
+from apps.platform_probe.models import Employee, Mold
 
 
 class Command(BaseCommand):
@@ -33,4 +34,17 @@ class Command(BaseCommand):
                 values["last_production_at"] = now - timedelta(days=production_days)
             Mold.objects.update_or_create(mold_id=mold_id, defaults=values)
 
-        self.stdout.write(self.style.SUCCESS(f"Seeded {len(payload['molds'])} demo molds."))
+        for item in payload["employees"]:
+            values = item.copy()
+            employee_id = values.pop("employee_id")
+            email_env = values.pop("email_env", None)
+            default_email = values.pop("default_email")
+            values["email"] = os.getenv(email_env, default_email) if email_env else default_email
+            Employee.objects.update_or_create(employee_id=employee_id, defaults=values)
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Seeded {len(payload['molds'])} demo molds and "
+                f"{len(payload['employees'])} demo employees."
+            )
+        )

@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.platform_probe.models import Mold
+from apps.platform_probe.models import Employee, Mold
 from apps.platform_probe.services.trigger_service import calculate_maintenance_status
 
 
@@ -15,6 +15,16 @@ class Command(BaseCommand):
         if actual_ids != expected_ids:
             missing = sorted(expected_ids - actual_ids)
             raise CommandError(f"Missing demo molds: {', '.join(missing)}")
+
+        expected_employees = {f"EMP-{index:03d}" for index in range(1, 5)}
+        actual_employees = set(
+            Employee.objects.filter(employee_id__in=expected_employees).values_list(
+                "employee_id", flat=True
+            )
+        )
+        if actual_employees != expected_employees:
+            missing = sorted(expected_employees - actual_employees)
+            raise CommandError(f"Missing demo employees: {', '.join(missing)}")
 
         checks = {
             "MOLD-TEST-001": (50_000, True, False),

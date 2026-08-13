@@ -11,6 +11,14 @@ def new_alert_id():
     return _prefixed_id("ALT")
 
 
+def new_work_order_id():
+    return _prefixed_id("WO")
+
+
+def new_event_id():
+    return _prefixed_id("EVT")
+
+
 class Mold(models.Model):
     class MoldType(models.TextChoices):
         INJECTION = "INJECTION", "注塑模具"
@@ -97,3 +105,87 @@ class MaintenanceAlert(models.Model):
 
     def __str__(self):
         return f"{self.alert_id} {self.mold_id} {self.alert_type}"
+
+
+class Employee(models.Model):
+    employee_id = models.CharField(primary_key=True, max_length=40)
+    employee_name = models.CharField(max_length=120)
+    email = models.EmailField()
+    team = models.CharField(max_length=120, blank=True, default="")
+    skill_tags = models.JSONField(default=list)
+    available = models.BooleanField(default=True)
+    current_load = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["employee_id"]
+
+    def __str__(self):
+        return f"{self.employee_id} {self.employee_name}"
+
+
+class WorkOrder(models.Model):
+    class Status(models.TextChoices):
+        PENDING_ASSIGNMENT = "PENDING_ASSIGNMENT", "待派工"
+        ASSIGNED = "ASSIGNED", "已派工"
+        IN_PROGRESS = "IN_PROGRESS", "进行中"
+        PAUSED = "PAUSED", "已暂停"
+        COMPLETED = "COMPLETED", "已完成"
+        ABNORMAL_REPORTED = "ABNORMAL_REPORTED", "异常已上报"
+        CANCELLED = "CANCELLED", "已取消"
+
+    work_order_id = models.CharField(
+        primary_key=True,
+        max_length=40,
+        default=new_work_order_id,
+        editable=False,
+    )
+    alert = models.OneToOneField(
+        MaintenanceAlert,
+        on_delete=models.PROTECT,
+        related_name="work_order",
+    )
+    mold = models.ForeignKey(Mold, on_delete=models.PROTECT, related_name="work_orders")
+    status = models.CharField(
+        max_length=30,
+        choices=Status.choices,
+        default=Status.PENDING_ASSIGNMENT,
+    )
+    assigned_employee = models.ForeignKey(
+        Employee,
+        on_delete=models.PROTECT,
+        related_name="assigned_work_orders",
+        null=True,
+        blank=True,
+    )
+    assigned_at = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    required_finish_at = models.DateTimeField(null=True, blank=True)
+    knowledge_profile_code = models.CharField(max_length=80)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "work_order_id"]
+
+    def __str__(self):
+        return f"{self.work_order_id} {self.mold_id} {self.status}"
+
+
+class WorkOrderEvent(models.Model):
+    event_id = models.CharField(
+        primary_key=True, max_length=40, default=new_event_id, editable=False
+    )
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name="events")
+    event_type = models.CharField(max_length=60)
+    event_data_json = models.JSONField(default=dict)
+    occurred_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["occurred_at", "created_at", "event_id"]
+
+    def __str__(self):
+        return f"{self.event_id} {self.work_order_id} {self.event_type}"

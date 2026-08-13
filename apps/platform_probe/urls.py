@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    AlertCreateWorkOrderView,
     AlertDetailView,
     AlertListView,
     AlertScanView,
@@ -9,6 +10,12 @@ from .views import (
     MoldDetailView,
     MoldListView,
     MoldMaintenanceStatusView,
+    WorkOrderAssignView,
+    WorkOrderAutoAssignView,
+    WorkOrderCandidatesView,
+    WorkOrderDetailView,
+    WorkOrderHistoryView,
+    WorkOrderListView,
 )
 
 app_name = "platform_probe"
@@ -26,4 +33,35 @@ urlpatterns = [
     path("alerts/scan", AlertScanView.as_view(), name="alert-scan"),
     path("alerts", AlertListView.as_view(), name="alert-list"),
     path("alerts/<str:alert_id>", AlertDetailView.as_view(), name="alert-detail"),
+    path(
+        "alerts/<str:alert_id>/create-work-order",
+        AlertCreateWorkOrderView.as_view(),
+        name="alert-create-work-order",
+    ),
+    path("work-orders", WorkOrderListView.as_view(), name="work-order-list"),
+    path(
+        "work-orders/<str:work_order_id>",
+        WorkOrderDetailView.as_view(),
+        name="work-order-detail",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/candidates",
+        WorkOrderCandidatesView.as_view(),
+        name="work-order-candidates",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/assign",
+        WorkOrderAssignView.as_view(),
+        name="work-order-assign",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/auto-assign",
+        WorkOrderAutoAssignView.as_view(),
+        name="work-order-auto-assign",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/history",
+        WorkOrderHistoryView.as_view(),
+        name="work-order-history",
+    ),
 ]

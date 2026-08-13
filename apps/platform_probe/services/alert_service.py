@@ -1,7 +1,8 @@
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from apps.platform_probe.models import MaintenanceAlert, Mold
+from apps.platform_probe.exceptions import ProbeAPIException
+from apps.platform_probe.models import MaintenanceAlert, Mold, WorkOrder, WorkOrderEvent
 
 from .trigger_service import TWO_MONTH_MESSAGE, calculate_maintenance_status
 
@@ -112,3 +113,50 @@ def scan_molds(mold_ids=None, now=None):
         )
 
     return {"results": results, "created_alert_ids": created_alert_ids}
+
+
+@transaction.atomic
+def create_work_order(alert_id, now=None):
+    now = now or timezone.now()
+    try:
+        alert = (
+            MaintenanceAlert.objects.select_for_update()
+            .select_related("mold")
+            .get(alert_id=alert_id)
+        )
+    except MaintenanceAlert.DoesNotExist as exc:
+        raise ProbeAPIException("ALERT_NOT_FOUND", "预警不存在", status_code=404) from exc
+
+    if alert.alert_type != MaintenanceAlert.AlertType.MAINTENANCE_DUE:
+        if alert.alert_type == MaintenanceAlert.AlertType.TWO_MONTH_REMINDER:
+            message = "两个月提醒只表示时间已到，不能创建保养工单"
+        else:
+            message = "两年无产量停扫提示不能创建保养工单"
+        raise ProbeAPIException("REMINDER_NOT_WORK_ORDER_ELIGIBLE", message)
+
+    if hasattr(alert, "work_order"):
+        raise ProbeAPIException("ALERT_ALREADY_HAS_WORK_ORDER", "该预警已创建工单", status_code=409)
+    if alert.status != MaintenanceAlert.Status.OPEN:
+        raise ProbeAPIException(
+            "INVALID_WORK_ORDER_STATE", "预警当前状态不能创建工单", status_code=409
+        )
+
+    profile = (
+        "INJECTION_PERIODIC_MAINTENANCE"
+        if alert.mold.mold_type == Mold.MoldType.INJECTION
+        else "SHEET_METAL_PERIODIC_MAINTENANCE"
+    )
+    work_order = WorkOrder.objects.create(
+        alert=alert,
+        mold=alert.mold,
+        knowledge_profile_code=profile,
+    )
+    alert.status = MaintenanceAlert.Status.WORK_ORDER_CREATED
+    alert.save(update_fields=["status", "updated_at"])
+    WorkOrderEvent.objects.create(
+        work_order=work_order,
+        event_type="WORK_ORDER_CREATED",
+        event_data_json={"alert_id": alert.alert_id, "mold_id": alert.mold_id},
+        occurred_at=now,
+    )
+    return work_order
