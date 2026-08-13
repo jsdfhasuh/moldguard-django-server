@@ -1,4 +1,4 @@
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework.response import Response
 
 from apps.common.exceptions import BusinessError
@@ -10,17 +10,18 @@ from apps.workorders.models import WorkOrder
 from apps.workorders.serializers import (
     AssignSerializer,
     ClientRequestSerializer,
-    EmailResultSerializer,
     KnowledgeSerializer,
     PauseSerializer,
     RemarksSerializer,
     ReportSerializer,
+    SendEmailSerializer,
 )
 from apps.workorders.services.assignment_service import (
     assign_work_order,
     auto_assign_work_order,
     candidate_data,
 )
+from apps.workorders.services.email_service import send_work_order_email
 from apps.workorders.services.execution_service import (
     continue_processing,
     pause_work_order,
@@ -30,7 +31,6 @@ from apps.workorders.services.execution_service import (
 from apps.workorders.services.knowledge_service import (
     email_context,
     knowledge_context,
-    record_email_result,
     save_knowledge_package,
 )
 from apps.workorders.services.presentation import work_order_data
@@ -247,24 +247,36 @@ class EmailContextView(EnvelopeAPIView):
         return success_response(email_context(get_work_order(work_order_id)), request=request)
 
 
-class EmailResultView(EnvelopeAPIView):
-    @extend_schema(request=EmailResultSerializer, responses=OpenAPIEnvelopeSerializer)
+class SendEmailView(EnvelopeAPIView):
+    @extend_schema(
+        request=SendEmailSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=OpenAPIEnvelopeSerializer, description="派工邮件发送成功"
+            ),
+            400: OpenApiResponse(
+                response=OpenAPIEnvelopeSerializer, description="请求字段校验失败"
+            ),
+            404: OpenApiResponse(response=OpenAPIEnvelopeSerializer, description="工单不存在"),
+            409: OpenApiResponse(
+                response=OpenAPIEnvelopeSerializer, description="邮件发送前置条件冲突"
+            ),
+            502: OpenApiResponse(
+                response=OpenAPIEnvelopeSerializer,
+                description="SMTP明确失败或发送结果无法确认",
+            ),
+        },
+    )
     def post(self, request, work_order_id):
-        serializer = EmailResultSerializer(data=request.data)
+        serializer = SendEmailSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         payload = serializer.validated_data
-        return idempotent_response(
-            request,
-            action="RECORD_EMAIL_RESULT",
-            object_id=work_order_id,
-            payload=payload,
-            message="邮件结果已记录",
-            operation=lambda: record_email_result(
-                work_order_id,
-                payload,
-                client_request_id=payload["client_request_id"],
-            ),
+        status_code, response_payload = send_work_order_email(
+            work_order_id,
+            payload,
+            current_request_id=request.request_id,
         )
+        return Response(response_payload, status=status_code)
 
 
 class WorkOrderReportView(EnvelopeAPIView):

@@ -64,7 +64,15 @@ def save_knowledge_package(work_order_id, payload, *, client_request_id):
         work_order = WorkOrder.objects.select_for_update().get(pk=work_order_id)
     except WorkOrder.DoesNotExist:
         raise BusinessError("WORK_ORDER_NOT_FOUND", "工单不存在", status_code=404) from None
-    if work_order.email_status == WorkOrder.EmailStatus.SENT or work_order.reported_at:
+    if (
+        work_order.email_status
+        in {
+            WorkOrder.EmailStatus.SENDING,
+            WorkOrder.EmailStatus.SENT,
+            WorkOrder.EmailStatus.OUTCOME_UNKNOWN,
+        }
+        or work_order.reported_at
+    ):
         raise BusinessError("KNOWLEDGE_PACKAGE_LOCKED", "知识包已锁定，不能覆盖", status_code=409)
     package = _validate_knowledge_package(payload)
     digest = knowledge_hash(package)
@@ -160,87 +168,4 @@ def email_context(work_order):
         "report_url": report_url(work_order),
         "report_button_text": "提交报工情况",
         "report_form_schema_version": work_order.report_form_schema_version,
-    }
-
-
-@transaction.atomic
-def record_email_result(work_order_id, payload, *, client_request_id):
-    try:
-        work_order = WorkOrder.objects.select_for_update().get(pk=work_order_id)
-    except WorkOrder.DoesNotExist:
-        raise BusinessError("WORK_ORDER_NOT_FOUND", "工单不存在", status_code=404) from None
-    if not work_order.assignee_id:
-        raise BusinessError("INVALID_WORK_ORDER_STATE", "工单尚未派工", status_code=409)
-    if work_order.reported_at is not None:
-        raise BusinessError(
-            "INVALID_WORK_ORDER_STATE", "工单已报工，不能再回写邮件结果", status_code=409
-        )
-    if not work_order.knowledge_package_hash:
-        raise BusinessError("KNOWLEDGE_PACKAGE_REQUIRED", "请先保存知识包", status_code=409)
-    if payload.get("knowledge_package_hash") != work_order.knowledge_package_hash:
-        raise BusinessError(
-            "KNOWLEDGE_PACKAGE_HASH_MISMATCH",
-            "邮件结果中的知识包哈希与工单不一致",
-            status_code=409,
-        )
-    target = payload.get("status")
-    if target not in {WorkOrder.EmailStatus.FAILED, WorkOrder.EmailStatus.SENT}:
-        raise BusinessError("VALIDATION_ERROR", "status只能是FAILED或SENT")
-    if work_order.email_status == WorkOrder.EmailStatus.SENT:
-        raise BusinessError(
-            "INVALID_EMAIL_STATUS_TRANSITION", "已发送邮件不能回退状态", status_code=409
-        )
-    now = timezone.now()
-    if target == WorkOrder.EmailStatus.SENT:
-        message_id = payload.get("message_id")
-        if not isinstance(message_id, str) or not message_id.strip():
-            raise BusinessError("VALIDATION_ERROR", "SENT结果必须提供message_id")
-        sent_at = payload["sent_at"]
-        work_order.email_message_id = message_id.strip()
-        work_order.email_sent_at = sent_at
-        work_order.email_error = ""
-        work_order.knowledge_locked_at = now
-    else:
-        error_message = payload.get("error_message")
-        if not isinstance(error_message, str) or not error_message.strip():
-            raise BusinessError("VALIDATION_ERROR", "FAILED结果必须提供error_message")
-        work_order.email_message_id = payload.get("message_id", "") or ""
-        work_order.email_sent_at = None
-        work_order.email_error = error_message.strip()
-    previous = work_order.email_status
-    work_order.email_status = target
-    work_order.save(
-        update_fields=[
-            "email_status",
-            "email_message_id",
-            "email_sent_at",
-            "email_error",
-            "knowledge_locked_at",
-            "updated_at",
-        ]
-    )
-    WorkOrderEvent.objects.create(
-        event_id=new_identifier("EVT"),
-        work_order=work_order,
-        event_type="EMAIL_RESULT_RECORDED",
-        event_data_json={
-            "from_email_status": previous,
-            "to_email_status": target,
-            "knowledge_package_hash": work_order.knowledge_package_hash,
-        },
-        request_key=f"email-result:{client_request_id}",
-        occurred_at=now,
-    )
-    return {
-        "work_order_id": work_order.work_order_id,
-        "old_email_status": previous,
-        "new_email_status": target,
-        "email_message_id": work_order.email_message_id,
-        "email_sent_at": work_order.email_sent_at.isoformat() if work_order.email_sent_at else None,
-        "email_error": work_order.email_error,
-        "knowledge_snapshot_version": work_order.knowledge_snapshot_version,
-        "knowledge_package_hash": work_order.knowledge_package_hash,
-        "knowledge_locked_at": work_order.knowledge_locked_at.isoformat()
-        if work_order.knowledge_locked_at
-        else None,
     }

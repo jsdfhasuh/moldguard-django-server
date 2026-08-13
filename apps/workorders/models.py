@@ -28,8 +28,10 @@ class WorkOrder(models.Model):
 
     class EmailStatus(models.TextChoices):
         NOT_SENT = "NOT_SENT", "未发送"
+        SENDING = "SENDING", "发送中"
         FAILED = "FAILED", "失败"
         SENT = "SENT", "已发送"
+        OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN", "发送结果未知"
 
     class ReportMethod(models.TextChoices):
         WEB_FORM = "WEB_FORM", "网页或JSON报工"

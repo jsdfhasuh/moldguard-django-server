@@ -39,3 +39,4 @@ chmod 600 "$temporary"
 mv "$temporary" "$target"
 trap - EXIT HUP INT TERM
 echo "Created ${target} with mode 600. Secret values were not printed."
+echo "Configure the SMTP host, sender, credentials, Message-ID domain, and DEMO recipients before deployment."

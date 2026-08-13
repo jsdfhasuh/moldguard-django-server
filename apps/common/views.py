@@ -31,6 +31,9 @@ class HealthView(EnvelopeAPIView):
 class MetaView(EnvelopeAPIView):
     @extend_schema(responses=OpenAPIEnvelopeSerializer)
     def get(self, request):
+        smtp_backend_configured = (
+            settings.EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend"
+        )
         return success_response(
             {
                 "service": "moldguard-competition-server",
@@ -40,7 +43,13 @@ class MetaView(EnvelopeAPIView):
                 "default_port": int(os.getenv("MOLDGUARD_HOST_PORT", "18081")),
                 "authentication_required": False,
                 "data_classification": "DEMO_ONLY",
-                "implementation_status": "READY_FOR_COMPETITION",
+                "smtp_backend_configured": smtp_backend_configured,
+                "email_backend": settings.EMAIL_BACKEND,
+                "implementation_status": (
+                    "READY_FOR_SMTP_DELIVERY_TEST"
+                    if settings.MOLDGUARD_REQUIRE_SMTP and smtp_backend_configured
+                    else "SMTP_CONFIGURATION_REQUIRED"
+                ),
             },
             request=request,
         )

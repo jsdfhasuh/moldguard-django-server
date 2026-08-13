@@ -41,24 +41,13 @@ class KnowledgeSerializer(serializers.Serializer):
     )
 
 
-class EmailResultSerializer(serializers.Serializer):
-    client_request_id = serializers.CharField(max_length=120)
-    status = serializers.ChoiceField(choices=["FAILED", "SENT"])
-    message_id = serializers.CharField(max_length=200, required=False, allow_blank=True, default="")
-    sent_at = serializers.DateTimeField(required=False, allow_null=True, default=None)
-    knowledge_package_hash = serializers.CharField(min_length=64, max_length=64)
-    error_message = serializers.CharField(
-        max_length=4000, required=False, allow_blank=True, default=""
-    )
-
+class SendEmailSerializer(ClientRequestSerializer):
     def validate(self, attrs):
-        if attrs["status"] == "SENT":
-            if not attrs.get("message_id", "").strip():
-                raise serializers.ValidationError({"message_id": "SENT结果必须提供message_id"})
-            if attrs.get("sent_at") is None:
-                raise serializers.ValidationError({"sent_at": "SENT结果必须提供sent_at"})
-        elif not attrs.get("error_message", "").strip():
-            raise serializers.ValidationError({"error_message": "FAILED结果必须提供error_message"})
+        unexpected = sorted(set(self.initial_data) - {"client_request_id"})
+        if unexpected:
+            raise serializers.ValidationError(
+                {name: ["send-email不接受此字段"] for name in unexpected}
+            )
         return attrs
 
 

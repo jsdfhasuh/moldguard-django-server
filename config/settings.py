@@ -1,10 +1,35 @@
 import os
+import re
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def env_bool(name, default=False):
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    normalized = raw.strip().lower()
+    if normalized in {"true", "1", "yes", "on"}:
+        return True
+    if normalized in {"false", "0", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be a boolean value")
+
+
+def env_positive_int(name, default):
+    raw = os.getenv(name, str(default)).strip()
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a positive integer") from exc
+    if value <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+    return value
+
+
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-demo-only-change-me")
-DEBUG = os.getenv("DJANGO_DEBUG", "true").lower() == "true"
+DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = [
     item.strip() for item in os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",") if item.strip()
 ]
@@ -78,7 +103,7 @@ TIME_ZONE = "Asia/Shanghai"
 USE_I18N = True
 USE_TZ = True
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = Path(os.getenv("DJANGO_STATIC_ROOT", str(BASE_DIR / "staticfiles")))
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
@@ -89,6 +114,37 @@ STORAGES = {
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
+
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.locmem.EmailBackend").strip()
+EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost").strip()
+EMAIL_PORT = env_positive_int("EMAIL_PORT", 25)
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", False)
+EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", False)
+EMAIL_TIMEOUT = env_positive_int("EMAIL_TIMEOUT", 15)
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "moldguard@localhost").strip()
+EMAIL_MESSAGE_ID_DOMAIN = os.getenv("EMAIL_MESSAGE_ID_DOMAIN", "localhost").strip()
+MOLDGUARD_REQUIRE_SMTP = env_bool("MOLDGUARD_REQUIRE_SMTP", False)
+
+if EMAIL_USE_TLS and EMAIL_USE_SSL:
+    raise ValueError("EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be true")
+if not DEFAULT_FROM_EMAIL:
+    raise ValueError("DEFAULT_FROM_EMAIL must not be empty")
+if not re.fullmatch(r"[A-Za-z0-9.-]+", EMAIL_MESSAGE_ID_DOMAIN):
+    raise ValueError("EMAIL_MESSAGE_ID_DOMAIN must be a valid message-id domain")
+if MOLDGUARD_REQUIRE_SMTP:
+    if EMAIL_BACKEND != "django.core.mail.backends.smtp.EmailBackend":
+        raise ValueError("Competition deployment requires Django's SMTP email backend")
+    if EMAIL_HOST.lower() in {"", "localhost", "smtp.example.com"}:
+        raise ValueError("Competition deployment requires a real EMAIL_HOST")
+    if "example.com" in DEFAULT_FROM_EMAIL.lower():
+        raise ValueError("Competition deployment requires a real DEFAULT_FROM_EMAIL")
+    if EMAIL_MESSAGE_ID_DOMAIN.lower() in {
+        "localhost",
+        "example.com",
+    } or EMAIL_MESSAGE_ID_DOMAIN.lower().endswith(".example.com"):
+        raise ValueError("Competition deployment requires a real EMAIL_MESSAGE_ID_DOMAIN")
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],
@@ -110,6 +166,7 @@ LOGGING = {
     "loggers": {
         "moldguard.requests": {"handlers": ["console"], "level": "INFO", "propagate": False},
         "moldguard.errors": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+        "moldguard.email": {"handlers": ["console"], "level": "INFO", "propagate": False},
     },
 }
 

@@ -1,0 +1,45 @@
+{% autoescape off %}MoldGuard 模具保养派工通知
+
+工单信息
+工单编号：{{ work_order.work_order_id }}
+工单类型：{{ work_order.get_work_order_type_display }}
+当前状态：{{ work_order.get_status_display }}
+被派工人员：{{ assignee.employee_name }}（{{ assignee.employee_id }}）
+要求完成时间：{{ work_order.required_finish_at|default:"未配置" }}
+标准工时：{% if work_order.standard_hours is not None %}{{ work_order.standard_hours }} 小时{% else %}未配置{% endif %}
+
+模具信息
+模具编号：{{ mold.mold_id }}
+模具名称：{{ mold.mold_name }}
+模具类型：{{ mold.get_mold_type_display }}
+模具类别：{{ mold.mold_category|default:"未配置" }}
+位置：{{ mold.level_1_location|default:"-" }} / {{ mold.level_2_location|default:"-" }}
+
+触发依据
+主规则：{{ work_order.primary_rule_id }}
+匹配规则：{{ work_order.matched_rule_ids_json|join:", " }}
+触发原因：{{ work_order.trigger_reason }}
+周期有效模次：{{ work_order.cycle_mold_cycles_snapshot|default:"未配置" }}
+触发阈值：{{ work_order.threshold_count|default:"未配置" }}
+
+知识包
+标题：{{ knowledge_package.title }}
+{% for item in knowledge_items %}
+{{ forloop.counter }}. {{ item.knowledge_id }}｜{{ item.item }}
+   判定标准：{{ item.criteria }}
+   点检方法：{{ item.method }}
+{% endfor %}
+
+安全注意事项
+{% for note in safety_notes %}- {{ note }}
+{% empty %}- 无额外安全注意事项
+{% endfor %}
+
+知识版本：{{ knowledge_snapshot_version }}
+知识包哈希：{{ knowledge_package_hash }}
+
+请打开以下链接逐项点检并提交报工：
+{{ report_url }}
+
+{{ report_button_text }}
+{% endautoescape %}

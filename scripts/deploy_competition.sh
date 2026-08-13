@@ -20,6 +20,7 @@ export COMPOSE_PROJECT_NAME="$compose_project"
 
 docker compose --env-file "$compose_env" config --quiet
 docker compose --env-file "$compose_env" build
+docker compose --env-file "$compose_env" run --rm --no-deps api python manage.py check
 docker compose --env-file "$compose_env" up -d
 docker compose --env-file "$compose_env" ps
 docker compose --env-file "$compose_env" logs --tail=200 api

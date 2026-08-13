@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ work_order.email_subject }}</title>
+</head>
+<body style="font-family:Arial,'Microsoft YaHei',sans-serif;color:#1f2937;line-height:1.6;margin:0;background:#f3f4f6;">
+  <div style="max-width:720px;margin:0 auto;padding:24px;">
+    <div style="background:#ffffff;border-radius:12px;padding:28px;">
+      <h1 style="margin-top:0;font-size:24px;">MoldGuard 模具保养派工通知</h1>
+
+      <h2 style="font-size:18px;">工单信息</h2>
+      <ul>
+        <li>工单编号：{{ work_order.work_order_id }}</li>
+        <li>工单类型：{{ work_order.get_work_order_type_display }}</li>
+        <li>当前状态：{{ work_order.get_status_display }}</li>
+        <li>被派工人员：{{ assignee.employee_name }}（{{ assignee.employee_id }}）</li>
+        <li>要求完成时间：{{ work_order.required_finish_at|default:"未配置" }}</li>
+        <li>标准工时：{% if work_order.standard_hours is not None %}{{ work_order.standard_hours }} 小时{% else %}未配置{% endif %}</li>
+      </ul>
+
+      <h2 style="font-size:18px;">模具信息</h2>
+      <ul>
+        <li>模具编号：{{ mold.mold_id }}</li>
+        <li>模具名称：{{ mold.mold_name }}</li>
+        <li>模具类型：{{ mold.get_mold_type_display }}</li>
+        <li>模具类别：{{ mold.mold_category|default:"未配置" }}</li>
+        <li>位置：{{ mold.level_1_location|default:"-" }} / {{ mold.level_2_location|default:"-" }}</li>
+      </ul>
+
+      <h2 style="font-size:18px;">触发依据</h2>
+      <ul>
+        <li>主规则：{{ work_order.primary_rule_id }}</li>
+        <li>匹配规则：{{ work_order.matched_rule_ids_json|join:", " }}</li>
+        <li>触发原因：{{ work_order.trigger_reason }}</li>
+        <li>周期有效模次：{{ work_order.cycle_mold_cycles_snapshot|default:"未配置" }}</li>
+        <li>触发阈值：{{ work_order.threshold_count|default:"未配置" }}</li>
+      </ul>
+
+      <h2 style="font-size:18px;">{{ knowledge_package.title }}</h2>
+      <table style="border-collapse:collapse;width:100%;">
+        <thead>
+          <tr>
+            <th style="border:1px solid #d1d5db;padding:8px;text-align:left;">点检项目</th>
+            <th style="border:1px solid #d1d5db;padding:8px;text-align:left;">判定标准</th>
+            <th style="border:1px solid #d1d5db;padding:8px;text-align:left;">点检方法</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in knowledge_items %}
+          <tr>
+            <td style="border:1px solid #d1d5db;padding:8px;">{{ item.knowledge_id }}｜{{ item.item }}</td>
+            <td style="border:1px solid #d1d5db;padding:8px;">{{ item.criteria }}</td>
+            <td style="border:1px solid #d1d5db;padding:8px;">{{ item.method }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <h2 style="font-size:18px;">安全注意事项</h2>
+      <ul>
+        {% for note in safety_notes %}<li>{{ note }}</li>{% empty %}<li>无额外安全注意事项</li>{% endfor %}
+      </ul>
+
+      <p>知识版本：{{ knowledge_snapshot_version }}</p>
+      <p style="overflow-wrap:anywhere;">知识包哈希：{{ knowledge_package_hash }}</p>
+      <p style="margin:28px 0;text-align:center;">
+        <a href="{{ report_url }}" style="display:inline-block;padding:12px 24px;background:#176b55;color:#ffffff;text-decoration:none;border-radius:8px;">{{ report_button_text }}</a>
+      </p>
+      <p style="overflow-wrap:anywhere;">报工链接：<a href="{{ report_url }}">{{ report_url }}</a></p>
+    </div>
+  </div>
+</body>
+</html>
