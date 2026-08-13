@@ -293,6 +293,20 @@ def test_non_assignee_cannot_start_or_report(seeded, api_client):
 
 
 @pytest.mark.django_db
+def test_missing_employee_cannot_report(seeded, api_client):
+    work_order_id = prepare_assigned_work_order(api_client)
+    payload = complete_payload(request_id="missing-employee-report")
+    payload["employee_id"] = "EMP-DOES-NOT-EXIST"
+
+    response = api_client.post(
+        f"/api/v1/work-orders/{work_order_id}/report-complete", payload, format="json"
+    )
+
+    assert response.status_code == 404
+    assert response.data["code"] == "EMPLOYEE_NOT_FOUND"
+
+
+@pytest.mark.django_db
 def test_complete_requires_all_required_inspection_items(seeded, api_client):
     work_order_id = prepare_assigned_work_order(api_client)
     payload = complete_payload()

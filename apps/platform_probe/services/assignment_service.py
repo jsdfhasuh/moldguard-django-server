@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 
 from apps.platform_probe.exceptions import ProbeAPIException
@@ -46,8 +47,10 @@ def assign_employee(work_order_id, employee_id, now=None):
     work_order.assigned_at = now
     work_order.status = WorkOrder.Status.ASSIGNED
     work_order.save(update_fields=["assigned_employee", "assigned_at", "status", "updated_at"])
-    employee.current_load += 1
-    employee.save(update_fields=["current_load", "updated_at"])
+    Employee.objects.filter(employee_id=employee.employee_id).update(
+        current_load=F("current_load") + 1,
+        updated_at=now,
+    )
     WorkOrderEvent.objects.create(
         work_order=work_order,
         event_type="WORK_ORDER_ASSIGNED",
@@ -81,8 +84,10 @@ def auto_assign_employee(work_order_id, now=None):
     work_order.assigned_at = now
     work_order.status = WorkOrder.Status.ASSIGNED
     work_order.save(update_fields=["assigned_employee", "assigned_at", "status", "updated_at"])
-    employee.current_load += 1
-    employee.save(update_fields=["current_load", "updated_at"])
+    Employee.objects.filter(employee_id=employee.employee_id).update(
+        current_load=F("current_load") + 1,
+        updated_at=now,
+    )
     WorkOrderEvent.objects.create(
         work_order=work_order,
         event_type="WORK_ORDER_ASSIGNED",

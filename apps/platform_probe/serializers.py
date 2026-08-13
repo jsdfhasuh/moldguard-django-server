@@ -17,6 +17,13 @@ from .models import (
 )
 
 
+class OpenAPIEnvelopeSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    message = serializers.CharField()
+    data = serializers.JSONField()
+    request_id = serializers.CharField()
+
+
 class MoldSerializer(serializers.ModelSerializer):
     class Meta:
         model = Mold

@@ -48,3 +48,11 @@ def test_unknown_api_path_uses_unified_json_error(api_client):
         "request_id": response.data["request_id"],
     }
     assert response.data["request_id"].startswith("req-")
+
+
+def test_api_root_uses_unified_json_error(api_client):
+    response = api_client.get("/api/v1/")
+
+    assert response.status_code == 404
+    assert response.data["code"] == "NOT_FOUND"
+    assert response["Content-Type"] == "application/json"

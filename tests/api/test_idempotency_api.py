@@ -1,8 +1,11 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 
 import pytest
 from django.core.management import call_command
+from django.db import close_old_connections
 from django.utils import timezone
+from rest_framework.test import APIClient
 
 from apps.platform_probe.models import (
     ClientRequestRecord,
@@ -175,3 +178,45 @@ def test_write_endpoint_rejects_missing_client_request_id(seeded, api_client):
     assert response.data["code"] == "VALIDATION_ERROR"
     assert response.data["data"] is None
     assert response.data["errors"][0]["field"] == "client_request_id"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_identical_complete_requests_replay_instead_of_conflicting(seeded, api_client):
+    work_order_id = prepare_reporting(api_client)
+    completed_at = timezone.now()
+    payload = {
+        "employee_id": "EMP-001",
+        "started_at": (completed_at - timedelta(hours=1)).isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "work_summary": "并发重放测试。",
+        "inspection_results": [
+            {
+                "knowledge_id": "KB-INJECTION-001",
+                "item": "检查模具表面及型腔",
+                "result": "PASS",
+                "note": "正常",
+            }
+        ],
+        "attachments": [],
+        "client_request_id": "complete-concurrent-replay",
+    }
+    url = f"/api/v1/work-orders/{work_order_id}/report-complete"
+
+    def send_request():
+        close_old_connections()
+        client = APIClient()
+        try:
+            response = client.post(url, payload, format="json")
+            return response.status_code, response.data
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _index: send_request(), range(2)))
+
+    assert [status for status, _data in results] == [200, 200]
+    report_ids = {data["data"]["report_id"] for _status, data in results}
+    assert len(report_ids) == 1
+    assert sum(data["data"].get("replayed", False) for _status, data in results) == 1
+    assert WorkReport.objects.filter(work_order_id=work_order_id).count() == 1
+    assert MaintenanceHistory.objects.filter(work_order_id=work_order_id).count() == 1

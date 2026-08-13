@@ -116,6 +116,10 @@ def build_probe_report(run):
             run.status = ProbeRun.Status.COMPLETED
             run.completed_at = timezone.now()
             run.save(update_fields=["status", "completed_at"])
+    elif run.status == ProbeRun.Status.COMPLETED:
+        run.status = ProbeRun.Status.RUNNING
+        run.completed_at = None
+        run.save(update_fields=["status", "completed_at"])
 
     return {
         "run": {
@@ -124,8 +128,10 @@ def build_probe_report(run):
             "tester": run.tester,
             "mode": run.mode,
             "status": run.status,
-            "started_at": run.started_at.isoformat(),
-            "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+            "started_at": timezone.localtime(run.started_at).isoformat(),
+            "completed_at": (
+                timezone.localtime(run.completed_at).isoformat() if run.completed_at else None
+            ),
         },
         "summary": {
             "total": len(matrix),

@@ -34,6 +34,8 @@ def _locked_work_order(work_order_id):
 def _validate_assignee(work_order, employee_id):
     if work_order.assigned_employee_id is None:
         raise ProbeAPIException("EMPLOYEE_NOT_ASSIGNED", "工单尚未派工", status_code=409)
+    if not Employee.objects.filter(employee_id=employee_id).exists():
+        raise ProbeAPIException("EMPLOYEE_NOT_FOUND", "员工不存在", status_code=404)
     if work_order.assigned_employee_id != employee_id:
         raise ProbeAPIException(
             "EMPLOYEE_NOT_ASSIGNED", "只有被派工人员可以执行此操作", status_code=403
@@ -289,7 +291,7 @@ def complete_work_order(work_order_id, payload):
         "cycle_reset": {
             "performed": True,
             "baseline_count": mold.cycle_baseline_count,
-            "baseline_time": mold.cycle_baseline_time.isoformat(),
+            "baseline_time": timezone.localtime(mold.cycle_baseline_time).isoformat(),
             "cycle_version": mold.cycle_version,
             "next_threshold": threshold,
             "next_trigger_count": mold.cycle_baseline_count + threshold,
@@ -326,7 +328,7 @@ def abnormal_work_order(work_order_id, payload):
         )
 
     now = timezone.now()
-    started_at = payload.get("started_at") or work_order.started_at or work_order.assigned_at or now
+    started_at = work_order.started_at or payload.get("started_at") or work_order.assigned_at or now
     completed_at = payload.get("completed_at") or now
     if completed_at <= started_at:
         raise ProbeAPIException("INVALID_TIME_RANGE", "completed_at必须晚于started_at")

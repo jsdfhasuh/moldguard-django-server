@@ -145,5 +145,6 @@ urlpatterns = [
         WorkOrderAbnormalReportView.as_view(),
         name="work-order-report-abnormal",
     ),
+    path("", ProbeNotFoundView.as_view(), name="api-root-not-found"),
     path("<path:unmatched>", ProbeNotFoundView.as_view(), name="api-not-found"),
 ]

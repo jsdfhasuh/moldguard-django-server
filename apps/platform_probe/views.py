@@ -1,6 +1,6 @@
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
-from rest_framework.views import APIView
+from rest_framework.generics import GenericAPIView
 
 from .exceptions import ProbeAPIException
 from .idempotency import idempotent
@@ -30,6 +30,7 @@ from .serializers import (
     MoldSerializer,
     NotificationCreateSerializer,
     NotificationReceiptSerializer,
+    OpenAPIEnvelopeSerializer,
     PauseActionSerializer,
     PauseSegmentSerializer,
     ProbeRunCreateSerializer,
@@ -61,7 +62,11 @@ from .services.reporting_service import (
 from .services.trigger_service import calculate_maintenance_status
 
 
-class HealthView(APIView):
+class ProbeAPIView(GenericAPIView):
+    serializer_class = OpenAPIEnvelopeSerializer
+
+
+class HealthView(ProbeAPIView):
     @extend_schema(responses={200: dict})
     def get(self, request):
         return success_response(
@@ -69,14 +74,14 @@ class HealthView(APIView):
                 "service": "moldguard-platform-capability-probe",
                 "status": "ok",
                 "version": "1.0.0",
-                "time": timezone.now().isoformat(),
+                "time": timezone.localtime().isoformat(),
                 "authentication_required": False,
             },
             request=request,
         )
 
 
-class MetaView(APIView):
+class MetaView(ProbeAPIView):
     @extend_schema(responses={200: dict})
     def get(self, request):
         return success_response(
@@ -87,7 +92,7 @@ class MetaView(APIView):
                 "default_port": 18080,
                 "authentication": "NONE",
                 "data_classification": "DEMO_ONLY",
-                "deployment_status": "IMPLEMENTING",
+                "deployment_status": "READY_FOR_PLATFORM_TEST",
                 "openapi_schema": "/api/schema",
                 "openapi_docs": "/api/docs",
             },
@@ -95,13 +100,15 @@ class MetaView(APIView):
         )
 
 
-class MoldListView(APIView):
+class MoldListView(ProbeAPIView):
+    @extend_schema(operation_id="list_molds", responses={200: OpenAPIEnvelopeSerializer})
     def get(self, request):
         molds = Mold.objects.all()
         return success_response({"molds": MoldSerializer(molds, many=True).data}, request=request)
 
 
-class MoldDetailView(APIView):
+class MoldDetailView(ProbeAPIView):
+    @extend_schema(operation_id="retrieve_mold", responses={200: OpenAPIEnvelopeSerializer})
     def get(self, request, mold_id):
         try:
             mold = Mold.objects.get(mold_id=mold_id)
@@ -110,7 +117,7 @@ class MoldDetailView(APIView):
         return success_response(MoldSerializer(mold).data, request=request)
 
 
-class MoldMaintenanceStatusView(APIView):
+class MoldMaintenanceStatusView(ProbeAPIView):
     def get(self, request, mold_id):
         try:
             mold = Mold.objects.get(mold_id=mold_id)
@@ -120,7 +127,10 @@ class MoldMaintenanceStatusView(APIView):
         return success_response(status.to_dict(), request=request)
 
 
-class AlertScanView(APIView):
+class AlertScanView(ProbeAPIView):
+    serializer_class = AlertScanSerializer
+
+    @extend_schema(responses={200: OpenAPIEnvelopeSerializer})
     @idempotent("ALERT_SCAN")
     def post(self, request):
         serializer = AlertScanSerializer(data=request.data)
@@ -129,7 +139,8 @@ class AlertScanView(APIView):
         return success_response(result, message="扫描完成", request=request)
 
 
-class AlertListView(APIView):
+class AlertListView(ProbeAPIView):
+    @extend_schema(operation_id="list_alerts", responses={200: OpenAPIEnvelopeSerializer})
     def get(self, request):
         alerts = MaintenanceAlert.objects.select_related("mold")
         alert_type = request.query_params.get("alert_type")
@@ -147,7 +158,8 @@ class AlertListView(APIView):
         )
 
 
-class AlertDetailView(APIView):
+class AlertDetailView(ProbeAPIView):
+    @extend_schema(operation_id="retrieve_alert", responses={200: OpenAPIEnvelopeSerializer})
     def get(self, request, alert_id):
         try:
             alert = MaintenanceAlert.objects.select_related("mold").get(alert_id=alert_id)
@@ -165,7 +177,10 @@ def get_work_order(work_order_id):
         raise ProbeAPIException("WORK_ORDER_NOT_FOUND", "工单不存在", status_code=404) from exc
 
 
-class AlertCreateWorkOrderView(APIView):
+class AlertCreateWorkOrderView(ProbeAPIView):
+    serializer_class = CreateWorkOrderSerializer
+
+    @extend_schema(responses={201: OpenAPIEnvelopeSerializer})
     @idempotent("CREATE_WORK_ORDER", "alert_id")
     def post(self, request, alert_id):
         serializer = CreateWorkOrderSerializer(data=request.data)
@@ -180,7 +195,8 @@ class AlertCreateWorkOrderView(APIView):
         )
 
 
-class WorkOrderListView(APIView):
+class WorkOrderListView(ProbeAPIView):
+    @extend_schema(operation_id="list_work_orders", responses={200: OpenAPIEnvelopeSerializer})
     def get(self, request):
         queryset = WorkOrder.objects.select_related("alert", "mold", "assigned_employee")
         status_value = request.query_params.get("status")
@@ -195,7 +211,8 @@ class WorkOrderListView(APIView):
         )
 
 
-class WorkOrderDetailView(APIView):
+class WorkOrderDetailView(ProbeAPIView):
+    @extend_schema(operation_id="retrieve_work_order", responses={200: OpenAPIEnvelopeSerializer})
     def get(self, request, work_order_id):
         return success_response(
             WorkOrderSerializer(get_work_order(work_order_id)).data,
@@ -203,7 +220,7 @@ class WorkOrderDetailView(APIView):
         )
 
 
-class WorkOrderCandidatesView(APIView):
+class WorkOrderCandidatesView(ProbeAPIView):
     def get(self, request, work_order_id):
         work_order = get_work_order(work_order_id)
         candidates = candidates_for(work_order)
@@ -217,7 +234,10 @@ class WorkOrderCandidatesView(APIView):
         )
 
 
-class WorkOrderAssignView(APIView):
+class WorkOrderAssignView(ProbeAPIView):
+    serializer_class = AssignSerializer
+
+    @extend_schema(responses={200: OpenAPIEnvelopeSerializer})
     @idempotent("ASSIGN_WORK_ORDER", "work_order_id")
     def post(self, request, work_order_id):
         serializer = AssignSerializer(data=request.data)
@@ -230,7 +250,10 @@ class WorkOrderAssignView(APIView):
         )
 
 
-class WorkOrderAutoAssignView(APIView):
+class WorkOrderAutoAssignView(ProbeAPIView):
+    serializer_class = AutoAssignSerializer
+
+    @extend_schema(responses={200: OpenAPIEnvelopeSerializer})
     @idempotent("AUTO_ASSIGN_WORK_ORDER", "work_order_id")
     def post(self, request, work_order_id):
         serializer = AutoAssignSerializer(data=request.data)
@@ -243,7 +266,7 @@ class WorkOrderAutoAssignView(APIView):
         )
 
 
-class WorkOrderHistoryView(APIView):
+class WorkOrderHistoryView(ProbeAPIView):
     def get(self, request, work_order_id):
         work_order = get_work_order(work_order_id)
         data = {
@@ -274,7 +297,7 @@ def ensure_assigned(work_order):
         raise ProbeAPIException("EMPLOYEE_NOT_ASSIGNED", "工单尚未派工", status_code=409)
 
 
-class WorkOrderKnowledgeContextView(APIView):
+class WorkOrderKnowledgeContextView(ProbeAPIView):
     def get(self, request, work_order_id):
         work_order = get_work_order(work_order_id)
         ensure_assigned(work_order)
@@ -298,7 +321,10 @@ class WorkOrderKnowledgeContextView(APIView):
         )
 
 
-class WorkOrderKnowledgeSnapshotView(APIView):
+class WorkOrderKnowledgeSnapshotView(ProbeAPIView):
+    serializer_class = KnowledgeSnapshotCreateSerializer
+
+    @extend_schema(responses={201: OpenAPIEnvelopeSerializer})
     @idempotent("SAVE_KNOWLEDGE_SNAPSHOT", "work_order_id")
     def post(self, request, work_order_id):
         work_order = get_work_order(work_order_id)
@@ -318,7 +344,7 @@ class WorkOrderKnowledgeSnapshotView(APIView):
         )
 
 
-class WorkOrderEmailContextView(APIView):
+class WorkOrderEmailContextView(ProbeAPIView):
     def get(self, request, work_order_id):
         work_order = get_work_order(work_order_id)
         ensure_assigned(work_order)
@@ -346,7 +372,10 @@ class WorkOrderEmailContextView(APIView):
         )
 
 
-class WorkOrderNotificationView(APIView):
+class WorkOrderNotificationView(ProbeAPIView):
+    serializer_class = NotificationCreateSerializer
+
+    @extend_schema(responses={201: OpenAPIEnvelopeSerializer})
     @idempotent("SAVE_NOTIFICATION_RECEIPT", "work_order_id")
     def post(self, request, work_order_id):
         work_order = get_work_order(work_order_id)
@@ -377,7 +406,10 @@ class WorkOrderNotificationView(APIView):
         )
 
 
-class WorkOrderStartView(APIView):
+class WorkOrderStartView(ProbeAPIView):
+    serializer_class = EmployeeActionSerializer
+
+    @extend_schema(responses={200: OpenAPIEnvelopeSerializer})
     @idempotent("START_WORK_ORDER", "work_order_id")
     def post(self, request, work_order_id):
         serializer = EmployeeActionSerializer(data=request.data)
@@ -394,7 +426,10 @@ class WorkOrderStartView(APIView):
         )
 
 
-class WorkOrderPauseView(APIView):
+class WorkOrderPauseView(ProbeAPIView):
+    serializer_class = PauseActionSerializer
+
+    @extend_schema(responses={200: OpenAPIEnvelopeSerializer})
     @idempotent("PAUSE_WORK_ORDER", "work_order_id")
     def post(self, request, work_order_id):
         serializer = PauseActionSerializer(data=request.data)
@@ -412,7 +447,10 @@ class WorkOrderPauseView(APIView):
         )
 
 
-class WorkOrderResumeView(APIView):
+class WorkOrderResumeView(ProbeAPIView):
+    serializer_class = EmployeeActionSerializer
+
+    @extend_schema(responses={200: OpenAPIEnvelopeSerializer})
     @idempotent("RESUME_WORK_ORDER", "work_order_id")
     def post(self, request, work_order_id):
         serializer = EmployeeActionSerializer(data=request.data)
@@ -429,7 +467,10 @@ class WorkOrderResumeView(APIView):
         )
 
 
-class WorkOrderCompleteReportView(APIView):
+class WorkOrderCompleteReportView(ProbeAPIView):
+    serializer_class = CompleteReportSerializer
+
+    @extend_schema(responses={200: OpenAPIEnvelopeSerializer})
     @idempotent("COMPLETE_WORK_ORDER", "work_order_id")
     def post(self, request, work_order_id):
         serializer = CompleteReportSerializer(data=request.data)
@@ -438,7 +479,10 @@ class WorkOrderCompleteReportView(APIView):
         return success_response(result, message="报工完成", request=request)
 
 
-class WorkOrderAbnormalReportView(APIView):
+class WorkOrderAbnormalReportView(ProbeAPIView):
+    serializer_class = AbnormalReportCreateSerializer
+
+    @extend_schema(responses={200: OpenAPIEnvelopeSerializer})
     @idempotent("ABNORMAL_WORK_ORDER", "work_order_id")
     def post(self, request, work_order_id):
         serializer = AbnormalReportCreateSerializer(data=request.data)
@@ -447,7 +491,10 @@ class WorkOrderAbnormalReportView(APIView):
         return success_response(result, message="异常报工已保存", request=request)
 
 
-class ProbeRunCreateView(APIView):
+class ProbeRunCreateView(ProbeAPIView):
+    serializer_class = ProbeRunCreateSerializer
+
+    @extend_schema(responses={201: OpenAPIEnvelopeSerializer})
     @idempotent("CREATE_PROBE_RUN")
     def post(self, request):
         serializer = ProbeRunCreateSerializer(data=request.data)
@@ -472,7 +519,7 @@ class ProbeRunCreateView(APIView):
                 "tester": run.tester,
                 "mode": run.mode,
                 "status": run.status,
-                "started_at": run.started_at.isoformat(),
+                "started_at": timezone.localtime(run.started_at).isoformat(),
                 "context_url": f"/api/v1/probe/runs/{run.run_id}/context",
             },
             message="探测运行已创建",
@@ -481,7 +528,7 @@ class ProbeRunCreateView(APIView):
         )
 
 
-class ProbeRunContextView(APIView):
+class ProbeRunContextView(ProbeAPIView):
     def get(self, request, run_id):
         run = get_probe_run(run_id)
         context = expected_context(run)
@@ -506,7 +553,10 @@ class ProbeRunContextView(APIView):
         )
 
 
-class ProbeVariableTestView(APIView):
+class ProbeVariableTestView(ProbeAPIView):
+    serializer_class = ProbeVariableTestSerializer
+
+    @extend_schema(responses={200: OpenAPIEnvelopeSerializer})
     @idempotent("PROBE_VARIABLE_TEST", "run_id")
     def post(self, request, run_id):
         run = get_probe_run(run_id)
@@ -560,7 +610,10 @@ class ProbeVariableTestView(APIView):
         )
 
 
-class ProbeSchedulerHeartbeatView(APIView):
+class ProbeSchedulerHeartbeatView(ProbeAPIView):
+    serializer_class = SchedulerHeartbeatSerializer
+
+    @extend_schema(responses={200: OpenAPIEnvelopeSerializer})
     @idempotent("PROBE_SCHEDULER_HEARTBEAT")
     def post(self, request):
         serializer = SchedulerHeartbeatSerializer(data=request.data)
@@ -573,14 +626,14 @@ class ProbeSchedulerHeartbeatView(APIView):
             "P12",
             ProbeStep.Status.PASS_NATIVE,
             request_snapshot=dict(request.data),
-            response_snapshot={"received_at": received_at.isoformat()},
+            response_snapshot={"received_at": timezone.localtime(received_at).isoformat()},
             evidence=serializer.validated_data.get("evidence") or "平台成功调用scheduler-heartbeat",
         )
         return success_response(
             {
                 "run_id": run.run_id,
-                "heartbeat_at": heartbeat_at.isoformat(),
-                "received_at": received_at.isoformat(),
+                "heartbeat_at": timezone.localtime(heartbeat_at).isoformat(),
+                "received_at": timezone.localtime(received_at).isoformat(),
                 "scheduler_capability": "PASS_NATIVE",
             },
             message="定时心跳已记录",
@@ -588,13 +641,14 @@ class ProbeSchedulerHeartbeatView(APIView):
         )
 
 
-class ProbeRunReportView(APIView):
+class ProbeRunReportView(ProbeAPIView):
     def get(self, request, run_id):
         run = get_probe_run(run_id)
         return success_response(build_probe_report(run), request=request)
 
 
-class ProbeNotFoundView(APIView):
+@extend_schema(exclude=True)
+class ProbeNotFoundView(ProbeAPIView):
     def _not_found(self):
         raise ProbeAPIException("NOT_FOUND", "请求的API路径不存在", status_code=404)
 

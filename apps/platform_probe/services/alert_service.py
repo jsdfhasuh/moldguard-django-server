@@ -149,11 +149,17 @@ def create_work_order(alert_id, now=None):
         if alert.mold.mold_type == Mold.MoldType.INJECTION
         else "SHEET_METAL_PERIODIC_MAINTENANCE"
     )
-    work_order = WorkOrder.objects.create(
-        alert=alert,
-        mold=alert.mold,
-        knowledge_profile_code=profile,
-    )
+    try:
+        with transaction.atomic():
+            work_order = WorkOrder.objects.create(
+                alert=alert,
+                mold=alert.mold,
+                knowledge_profile_code=profile,
+            )
+    except IntegrityError as exc:
+        raise ProbeAPIException(
+            "ALERT_ALREADY_HAS_WORK_ORDER", "该预警已创建工单", status_code=409
+        ) from exc
     alert.status = MaintenanceAlert.Status.WORK_ORDER_CREATED
     alert.save(update_fields=["status", "updated_at"])
     WorkOrderEvent.objects.create(
