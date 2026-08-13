@@ -1,11 +1,13 @@
 import math
 
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 
 from apps.platform_probe.exceptions import ProbeAPIException
 from apps.platform_probe.models import (
     AbnormalReport,
+    Employee,
     MaintenanceAlert,
     MaintenanceHistory,
     Mold,
@@ -43,6 +45,13 @@ def _ensure_not_finished(work_order):
         raise ProbeAPIException("WORK_ORDER_ALREADY_COMPLETED", "工单已经完成", status_code=409)
 
 
+def _release_employee_load(employee_id):
+    Employee.objects.filter(employee_id=employee_id, current_load__gt=0).update(
+        current_load=F("current_load") - 1,
+        updated_at=timezone.now(),
+    )
+
+
 @transaction.atomic
 def start_work_order(work_order_id, employee_id, occurred_at=None):
     occurred_at = occurred_at or timezone.now()
@@ -78,6 +87,9 @@ def pause_work_order(work_order_id, employee_id, reason="", occurred_at=None):
         )
     if work_order.started_at and occurred_at < work_order.started_at:
         raise ProbeAPIException("INVALID_TIME_RANGE", "暂停时间不能早于开工时间")
+    previous = work_order.pause_segments.select_for_update().order_by("-paused_at").first()
+    if previous is not None and (previous.resumed_at is None or occurred_at < previous.resumed_at):
+        raise ProbeAPIException("INVALID_TIME_RANGE", "暂停时间不能与已有暂停区间重叠")
 
     segment = PauseSegment.objects.create(
         work_order=work_order,
@@ -245,9 +257,7 @@ def complete_work_order(work_order_id, payload):
     )
     alert.status = MaintenanceAlert.Status.CLOSED
     alert.save(update_fields=["status", "updated_at"])
-    if work_order.assigned_employee.current_load > 0:
-        work_order.assigned_employee.current_load -= 1
-        work_order.assigned_employee.save(update_fields=["current_load", "updated_at"])
+    _release_employee_load(work_order.assigned_employee_id)
 
     history = MaintenanceHistory.objects.create(
         mold=mold,
@@ -316,12 +326,17 @@ def abnormal_work_order(work_order_id, payload):
         )
 
     now = timezone.now()
-    started_at = payload.get("started_at") or work_order.started_at or now
+    started_at = payload.get("started_at") or work_order.started_at or work_order.assigned_at or now
     completed_at = payload.get("completed_at") or now
-    if completed_at < started_at:
-        raise ProbeAPIException("INVALID_TIME_RANGE", "completed_at不能早于started_at")
+    if completed_at <= started_at:
+        raise ProbeAPIException("INVALID_TIME_RANGE", "completed_at必须晚于started_at")
     paused_seconds = 0
-    for segment in work_order.pause_segments.all():
+    for segment in work_order.pause_segments.select_for_update().all():
+        if segment.resumed_at is None:
+            if completed_at <= segment.paused_at:
+                raise ProbeAPIException("INVALID_TIME_RANGE", "异常报工时间必须晚于暂停时间")
+            segment.resumed_at = completed_at
+            segment.save(update_fields=["resumed_at"])
         resume_at = segment.resumed_at or completed_at
         overlap_start = max(segment.paused_at, started_at)
         overlap_end = min(resume_at, completed_at)
@@ -354,11 +369,10 @@ def abnormal_work_order(work_order_id, payload):
         client_request_id=payload["client_request_id"],
     )
     work_order.status = WorkOrder.Status.ABNORMAL_REPORTED
+    work_order.started_at = started_at
     work_order.completed_at = completed_at
-    work_order.save(update_fields=["status", "completed_at", "updated_at"])
-    if work_order.assigned_employee.current_load > 0:
-        work_order.assigned_employee.current_load -= 1
-        work_order.assigned_employee.save(update_fields=["current_load", "updated_at"])
+    work_order.save(update_fields=["status", "started_at", "completed_at", "updated_at"])
+    _release_employee_load(work_order.assigned_employee_id)
     WorkOrderEvent.objects.create(
         work_order=work_order,
         event_type="WORK_ORDER_ABNORMAL_REPORTED",

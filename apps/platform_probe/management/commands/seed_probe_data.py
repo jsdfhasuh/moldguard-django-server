@@ -39,7 +39,7 @@ class Command(BaseCommand):
             employee_id = values.pop("employee_id")
             email_env = values.pop("email_env", None)
             default_email = values.pop("default_email")
-            values["email"] = os.getenv(email_env, default_email) if email_env else default_email
+            values["email"] = os.getenv(email_env) or default_email if email_env else default_email
             Employee.objects.update_or_create(employee_id=employee_id, defaults=values)
 
         self.stdout.write(

@@ -190,6 +190,46 @@ def test_report_preserves_not_tested_and_has_full_matrix(api_client):
 
 
 @pytest.mark.django_db
+def test_full_capability_evidence_completes_probe_run(api_client):
+    created = create_run(api_client, request_id="complete-probe-create")
+    run_id = created.data["data"]["run_id"]
+    context = api_client.get(f"/api/v1/probe/runs/{run_id}/context").data["data"]["challenge"]
+    capability_results = [
+        {
+            "capability_code": code,
+            "status": "PASS_NATIVE",
+            "evidence": f"{code}平台实测证据",
+        }
+        for code in ["P05", "P06", "P07", "P08", "P09", "P10", "P11", "P13"]
+    ]
+    variable = api_client.post(
+        f"/api/v1/probe/runs/{run_id}/variable-test",
+        {
+            **context,
+            "capability_results": capability_results,
+            "client_request_id": "complete-probe-variable",
+        },
+        format="json",
+    )
+    heartbeat = api_client.post(
+        "/api/v1/probe/scheduler-heartbeat",
+        {
+            "run_id": run_id,
+            "client_request_id": "complete-probe-heartbeat",
+        },
+        format="json",
+    )
+    report = api_client.get(f"/api/v1/probe/runs/{run_id}/report")
+
+    assert variable.status_code == 200
+    assert heartbeat.status_code == 200
+    assert report.data["data"]["run"]["status"] == "COMPLETED"
+    assert report.data["data"]["run"]["completed_at"] is not None
+    assert report.data["data"]["summary"]["tested"] == 15
+    assert report.data["data"]["summary"]["counts"]["NOT_TESTED"] == 0
+
+
+@pytest.mark.django_db
 def test_missing_probe_run_uses_named_error(api_client):
     response = api_client.get("/api/v1/probe/runs/PRB-NOT-FOUND/report")
 

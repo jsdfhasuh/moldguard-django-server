@@ -10,6 +10,7 @@ from .views import (
     MoldDetailView,
     MoldListView,
     MoldMaintenanceStatusView,
+    ProbeNotFoundView,
     ProbeRunContextView,
     ProbeRunCreateView,
     ProbeRunReportView,
@@ -144,4 +145,5 @@ urlpatterns = [
         WorkOrderAbnormalReportView.as_view(),
         name="work-order-report-abnormal",
     ),
+    path("<path:unmatched>", ProbeNotFoundView.as_view(), name="api-not-found"),
 ]

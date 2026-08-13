@@ -45,7 +45,13 @@ WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
 database_path = os.getenv("DJANGO_DB_PATH", str(BASE_DIR / "db.sqlite3"))
-DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": database_path}}
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": database_path,
+        "OPTIONS": {"timeout": 20},
+    }
+}
 
 LANGUAGE_CODE = "zh-hans"
 TIME_ZONE = "Asia/Shanghai"

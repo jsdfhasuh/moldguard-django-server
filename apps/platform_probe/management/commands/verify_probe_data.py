@@ -25,6 +25,18 @@ class Command(BaseCommand):
         if actual_employees != expected_employees:
             missing = sorted(expected_employees - actual_employees)
             raise CommandError(f"Missing demo employees: {', '.join(missing)}")
+        employee_checks = {
+            "EMP-001": (["INJECTION"], True),
+            "EMP-002": (["SHEET_METAL"], True),
+            "EMP-003": (["INJECTION", "SHEET_METAL"], False),
+            "EMP-004": (["INJECTION", "SHEET_METAL"], True),
+        }
+        for employee_id, (skills, available) in employee_checks.items():
+            employee = Employee.objects.get(employee_id=employee_id)
+            if employee.skill_tags != skills or employee.available is not available:
+                raise CommandError(f"Unexpected employee scenario for {employee_id}")
+            if not employee.email:
+                raise CommandError(f"Employee {employee_id} has no configured test email")
 
         checks = {
             "MOLD-TEST-001": (50_000, True, False),

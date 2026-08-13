@@ -2,6 +2,7 @@ import copy
 import functools
 import hashlib
 import json
+import threading
 
 from django.db import IntegrityError, transaction
 from rest_framework import serializers
@@ -10,6 +11,17 @@ from rest_framework.response import Response
 from .exceptions import ProbeAPIException
 from .models import ClientRequestRecord
 from .responses import get_request_id
+
+_lock_registry_guard = threading.Lock()
+_request_locks = {}
+
+
+def _request_lock(client_request_id):
+    # The documented deployment uses one threaded worker. This lock also keeps
+    # SQLite retries deterministic; the database primary key remains the
+    # cross-process source of truth.
+    with _lock_registry_guard:
+        return _request_locks.setdefault(client_request_id, threading.Lock())
 
 
 def canonical_request_hash(action, object_id, request_data):
@@ -66,28 +78,34 @@ def idempotent(action, object_kwarg=None):
             object_id = kwargs.get(object_kwarg, "") if object_kwarg else ""
             request_hash = canonical_request_hash(action, object_id, request.data)
 
-            existing = _existing_response(client_request_id, request_hash, request)
-            if existing is not None:
-                return existing
+            with _request_lock(client_request_id):
+                existing = _existing_response(client_request_id, request_hash, request)
+                if existing is not None:
+                    return existing
 
-            try:
-                with transaction.atomic():
-                    response = view_method(view, request, *args, **kwargs)
-                    if response.status_code < 400:
-                        ClientRequestRecord.objects.create(
+                try:
+                    with transaction.atomic():
+                        record = ClientRequestRecord.objects.create(
                             client_request_id=client_request_id,
                             action=action,
                             object_id=object_id,
                             request_hash=request_hash,
-                            response_status=response.status_code,
-                            response_json=copy.deepcopy(response.data),
+                            response_status=0,
+                            response_json={},
                         )
-                    return response
-            except IntegrityError:
-                existing = _existing_response(client_request_id, request_hash, request)
-                if existing is not None:
-                    return existing
-                raise
+                        response = view_method(view, request, *args, **kwargs)
+                        if response.status_code < 400:
+                            record.response_status = response.status_code
+                            record.response_json = copy.deepcopy(response.data)
+                            record.save(update_fields=["response_status", "response_json"])
+                        else:
+                            record.delete()
+                        return response
+                except IntegrityError:
+                    existing = _existing_response(client_request_id, request_hash, request)
+                    if existing is not None:
+                        return existing
+                    raise
 
         return wrapped
 

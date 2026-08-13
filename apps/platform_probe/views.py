@@ -592,3 +592,16 @@ class ProbeRunReportView(APIView):
     def get(self, request, run_id):
         run = get_probe_run(run_id)
         return success_response(build_probe_report(run), request=request)
+
+
+class ProbeNotFoundView(APIView):
+    def _not_found(self):
+        raise ProbeAPIException("NOT_FOUND", "请求的API路径不存在", status_code=404)
+
+    def get(self, request, unmatched=None):
+        self._not_found()
+
+    post = get
+    put = get
+    patch = get
+    delete = get

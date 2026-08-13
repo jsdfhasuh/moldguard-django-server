@@ -146,6 +146,55 @@ def test_assignee_can_start_pause_resume_and_paused_time_is_deducted(seeded, api
 
 
 @pytest.mark.django_db
+def test_pause_segments_cannot_overlap_or_move_backwards(seeded, api_client):
+    work_order_id = prepare_assigned_work_order(api_client)
+    started = timezone.now() - timedelta(hours=3)
+    paused = started + timedelta(minutes=30)
+    resumed = paused + timedelta(minutes=20)
+    api_client.post(
+        f"/api/v1/work-orders/{work_order_id}/start",
+        {
+            "employee_id": "EMP-001",
+            "occurred_at": started.isoformat(),
+            "client_request_id": "overlap-start",
+        },
+        format="json",
+    )
+    api_client.post(
+        f"/api/v1/work-orders/{work_order_id}/pause",
+        {
+            "employee_id": "EMP-001",
+            "occurred_at": paused.isoformat(),
+            "client_request_id": "overlap-pause-1",
+        },
+        format="json",
+    )
+    api_client.post(
+        f"/api/v1/work-orders/{work_order_id}/resume",
+        {
+            "employee_id": "EMP-001",
+            "occurred_at": resumed.isoformat(),
+            "client_request_id": "overlap-resume-1",
+        },
+        format="json",
+    )
+
+    response = api_client.post(
+        f"/api/v1/work-orders/{work_order_id}/pause",
+        {
+            "employee_id": "EMP-001",
+            "occurred_at": (paused + timedelta(minutes=10)).isoformat(),
+            "client_request_id": "overlap-pause-2",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.data["code"] == "INVALID_TIME_RANGE"
+    assert WorkOrder.objects.get(pk=work_order_id).status == WorkOrder.Status.IN_PROGRESS
+
+
+@pytest.mark.django_db
 def test_one_shot_complete_resets_cycle_and_closes_alert_atomically(seeded, api_client):
     work_order_id = prepare_assigned_work_order(api_client)
     mold_before = Mold.objects.get(pk="MOLD-TEST-001")
@@ -187,6 +236,40 @@ def test_one_shot_complete_resets_cycle_and_closes_alert_atomically(seeded, api_
     assert mold.last_reset_event_id == report.report_id
     assert history.cycle_version_before == old_version
     assert history.cycle_version_after == old_version + 1
+
+
+@pytest.mark.django_db
+def test_cycle_reset_allows_new_alert_in_new_cycle_version(seeded, api_client):
+    work_order_id = prepare_assigned_work_order(api_client)
+    completed = api_client.post(
+        f"/api/v1/work-orders/{work_order_id}/report-complete",
+        complete_payload(request_id="complete-for-new-cycle"),
+        format="json",
+    )
+    assert completed.status_code == 200
+    mold = Mold.objects.get(pk="MOLD-TEST-001")
+    mold.current_count += 50_000
+    mold.last_production_at = timezone.now()
+    mold.save(update_fields=["current_count", "last_production_at", "updated_at"])
+
+    scanned = api_client.post(
+        "/api/v1/alerts/scan",
+        {
+            "mold_ids": ["MOLD-TEST-001"],
+            "client_request_id": "scan-new-cycle-version",
+        },
+        format="json",
+    )
+
+    assert scanned.status_code == 200
+    alerts = MaintenanceAlert.objects.filter(
+        mold_id="MOLD-TEST-001",
+        alert_type=MaintenanceAlert.AlertType.MAINTENANCE_DUE,
+    ).order_by("cycle_version")
+    assert list(alerts.values_list("cycle_version", "status")) == [
+        (1, MaintenanceAlert.Status.CLOSED),
+        (2, MaintenanceAlert.Status.OPEN),
+    ]
 
 
 @pytest.mark.django_db
@@ -340,6 +423,61 @@ def test_abnormal_report_saves_failure_without_reset_or_closing_alert(seeded, ap
         mold_after.cycle_version,
     ) == original
     assert MaintenanceHistory.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_abnormal_report_from_paused_closes_segment_and_preserves_start_time(seeded, api_client):
+    work_order_id = prepare_assigned_work_order(api_client)
+    started = timezone.now() - timedelta(hours=2)
+    paused = started + timedelta(minutes=45)
+    completed = paused + timedelta(minutes=30)
+    api_client.post(
+        f"/api/v1/work-orders/{work_order_id}/start",
+        {
+            "employee_id": "EMP-001",
+            "occurred_at": started.isoformat(),
+            "client_request_id": "paused-abnormal-start",
+        },
+        format="json",
+    )
+    api_client.post(
+        f"/api/v1/work-orders/{work_order_id}/pause",
+        {
+            "employee_id": "EMP-001",
+            "occurred_at": paused.isoformat(),
+            "reason": "发现异常",
+            "client_request_id": "paused-abnormal-pause",
+        },
+        format="json",
+    )
+
+    response = api_client.post(
+        f"/api/v1/work-orders/{work_order_id}/report-abnormal",
+        {
+            "employee_id": "EMP-001",
+            "abnormal_type": "COOLING_CHANNEL_BLOCKED",
+            "description": "暂停检查时发现冷却水路堵塞。",
+            "completed_at": completed.isoformat(),
+            "inspection_results": [
+                {
+                    "knowledge_id": "KB-INJECTION-002",
+                    "item": "检查冷却水路",
+                    "result": "FAIL",
+                    "note": "发现堵塞",
+                }
+            ],
+            "client_request_id": "paused-abnormal-report",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    work_order = WorkOrder.objects.get(pk=work_order_id)
+    segment = work_order.pause_segments.get()
+    assert work_order.status == WorkOrder.Status.ABNORMAL_REPORTED
+    assert work_order.started_at == started
+    assert segment.resumed_at == completed
+    assert WorkReport.objects.get(work_order=work_order).paused_seconds == 1800
 
 
 @pytest.mark.django_db

@@ -77,6 +77,7 @@ def test_scan_creates_expected_alerts_without_duplicates(seeded_molds, api_clien
         item for item in first.data["data"]["results"] if item["mold_id"] == "MOLD-TEST-006"
     )
     assert mold_three["result"] == "TWO_MONTH_REMINDER"
+    assert mold_three["messages"] == ["仅表示已满2个月，不代表模次保养条件已达到。"]
     assert mold_four["result"] == "IDLE_AUTO_REMINDER_DISABLED"
     assert mold_six["result"] == "DEVELOPMENT_TONNAGE_NOT_CONFIGURED"
     assert not MaintenanceAlert.objects.filter(

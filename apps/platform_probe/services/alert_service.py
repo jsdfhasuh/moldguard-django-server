@@ -83,6 +83,7 @@ def scan_molds(mold_ids=None, now=None):
             continue
 
         alert_types = []
+        messages = []
         result_code = "NO_ALERT_DUE"
         if status.idle_auto_reminder_disabled:
             alert_types = [MaintenanceAlert.AlertType.IDLE_AUTO_REMINDER_DISABLED]
@@ -93,6 +94,7 @@ def scan_molds(mold_ids=None, now=None):
                 result_code = "MAINTENANCE_DUE"
             if status.two_month_reminder_due:
                 alert_types.append(MaintenanceAlert.AlertType.TWO_MONTH_REMINDER)
+                messages.append(TWO_MONTH_MESSAGE)
                 if result_code == "NO_ALERT_DUE":
                     result_code = "TWO_MONTH_REMINDER"
 
@@ -108,6 +110,7 @@ def scan_molds(mold_ids=None, now=None):
                 "mold_id": mold.mold_id,
                 "result": result_code,
                 "alert_ids": mold_alert_ids,
+                "messages": messages,
                 "maintenance_status": status.to_dict(),
             }
         )

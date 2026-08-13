@@ -34,3 +34,17 @@ def test_wrong_method_uses_unified_error_envelope(api_client):
     assert response.data["data"] is None
     assert response.data["errors"] == []
     assert response.data["request_id"].startswith("req-")
+
+
+def test_unknown_api_path_uses_unified_json_error(api_client):
+    response = api_client.get("/api/v1/not-a-real-endpoint")
+
+    assert response.status_code == 404
+    assert response.data == {
+        "code": "NOT_FOUND",
+        "message": "请求的API路径不存在",
+        "data": None,
+        "errors": [],
+        "request_id": response.data["request_id"],
+    }
+    assert response.data["request_id"].startswith("req-")
