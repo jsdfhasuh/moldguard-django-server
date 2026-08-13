@@ -68,3 +68,18 @@ def normal_report_payload(suffix, knowledge_hash):
         "abnormal_next_action": None,
         "knowledge_package_hash": knowledge_hash,
     }
+
+
+def abnormal_report_payload(suffix, knowledge_hash, *, next_action="CONTINUE_PROCESSING"):
+    payload = normal_report_payload(suffix, knowledge_hash)
+    payload.update(
+        {
+            "report_type": "ABNORMAL",
+            "report_summary": "发现冷却水路堵塞，常规保养无法处理",
+            "abnormal_items": [{"item": "冷却水路", "description": "水路堵塞，需要后续处理"}],
+            "actual_work_hours": "1.50",
+            "abnormal_next_action": next_action,
+        }
+    )
+    payload["inspection_results"][1].update({"result": "FAIL", "abnormal_note": "水路不通"})
+    return payload
