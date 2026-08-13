@@ -7,8 +7,10 @@
 ```text
 知识库：MOLDGUARD-KB-1.2
 完整实施计划：V5.0
-模型字段：V3.0
-报工表单：REPORT-FORM-1.0
+阻塞项决议：V5.1
+一天后端优先计划：V1.0
+模型字段：V3.1
+报工表单：REPORT-FORM-1.1
 目标实施分支：agent/competition-server-v1
 本地测试数据库：SQLite
 比赛部署数据库：MariaDB
@@ -25,8 +27,9 @@
 ```text
 main
 → agent/competition-server-v1
-→ 新建Django工程、应用、模型和初始迁移
-→ 按V5.0完整实现并部署
+→ Codex一次性完成P0后端
+→ 按单元/API/集成测试逐类Debug
+→ 再完成HTML报工页面、异常关联修模和部署
 ```
 
 测试分支：
@@ -37,10 +40,36 @@ agent/platform-capability-probe-v1@2ed0b59
 
 只用于参考统一响应、Request-ID、幂等、事务、测试组织和 Docker/MariaDB 部署经验；不合并、不 cherry-pick、不复制旧迁移，也不沿用 `platform_probe` 应用和 `/probe/*` 接口。
 
+## 一天优先级
+
+### P0 必须完成
+
+```text
+Django工程与7个模型
+DEMO数据命令
+注塑/钣金规则
+扫描自动建单和合并触发
+候选人员与指定派工
+知识包、邮件上下文和report_url
+JSON正常/异常报工
+履历、周期复位、幂等和核心测试
+Docker/MariaDB可启动
+```
+
+### P1 后半段完成
+
+```text
+HTML报工页面
+继续处理与关联修模
+基础统计
+tracking/overdue
+Nginx/HTTPS和平台联调
+```
+
 ## 仓库结构
 
 ```text
-docs/             完整实施计划、模型、接口、业务场景和决策
+docs/             完整计划、V5.1决议、一天执行计划、模型和契约
 knowledge-base/   解压后的最终知识文档、发布清单和校验信息
 ```
 
@@ -52,7 +81,6 @@ knowledge-base/   解压后的最终知识文档、发布清单和校验信息
 - [MOLDGUARD-KB-1.2 发布说明](knowledge-base/releases/MOLDGUARD-KB-1.2/README.md)
 - [触发保养标准](knowledge-base/releases/MOLDGUARD-KB-1.2/upload/01_触发保养标准.md)
 - [保养、点检、故障工时与邮件链接报工](knowledge-base/releases/MOLDGUARD-KB-1.2/upload/02_保养内容_点检_储放_故障工时与邮件链接报工.md)
-- [发布清单和校验报告](knowledge-base/releases/MOLDGUARD-KB-1.2/manifests/)
 
 比赛平台只上传 `upload/` 下的两个 Markdown 文件，不上传发布清单或校验报告。
 
@@ -68,20 +96,23 @@ knowledge-base/   解压后的最终知识文档、发布清单和校验信息
 → 查询工时、完成率和模具履历
 ```
 
-## 关键规则
+## 关键实现决议
 
-- 注塑：`<1000T=50,000`、`>=1000T=30,000`，另有2个月时间工单；
-- 钣金：成型150,000，冲孔落料/连续/边板400,000；
-- `LC109` 必须显式提供 `mold_category`；
-- 正常报工直接完成，不设置主管验收；
-- 报工链接由 Django 生成，智能体平台只负责放入邮件；
+- 同一周期模次和时间同时命中时只创建一张正式工单；
+- 正常报工允许从 `ASSIGNED` 直接完成；
+- 页面不输入员工编号，服务器使用工单 `assignee`；
+- `current_load` 使用固定 DEMO 值，不自动增减；
+- 未配置标准工时时返回 null，不猜测；
+- 邮件发送成功后锁定知识包并校验内容哈希；
+- 所有写 API 使用 `client_request_id` 精确重放；
 - 异常报工不结单、不复位，可继续处理或关联修模。
 
 ## 权威文档
 
 - [文档索引](docs/README.md)
+- [一天后端优先实施计划V1.0](docs/plans/2026-08-13-moldguard-one-day-backend-first-plan.md)
+- [V5.1阻塞项决议](docs/decisions/2026-08-13-v5.1-blocker-resolution.md)
 - [比赛服务器完整实施计划V5.0](docs/plans/2026-08-12-moldguard-django-implementation-plan.md)
-- [模型字段V3.0](docs/models/2026-08-13-django-model-field-review.md)
-- [邮件报工链接契约](docs/contracts/2026-08-13-mail-report-link-contract.md)
-- [干净重建确认](docs/decisions/2026-08-13-competition-server-clean-build-confirmation.md)
+- [模型字段V3.1](docs/models/2026-08-13-django-model-field-review.md)
+- [报工契约REPORT-FORM-1.1](docs/contracts/2026-08-13-mail-report-link-contract.md)
 - [知识库MOLDGUARD-KB-1.2](knowledge-base/releases/MOLDGUARD-KB-1.2/README.md)
