@@ -2,22 +2,26 @@
 
 - **当前知识库**：`MOLDGUARD-KB-1.2`
 - **完整实施计划**：V5.0
-- **当前模型字段**：V3.0
-- **当前报工表单**：`REPORT-FORM-1.0`
+- **阻塞项决议**：V5.1
+- **一天后端优先计划**：V1.0
+- **当前模型字段**：V3.1
+- **当前报工表单**：`REPORT-FORM-1.1`
 - **目标实施分支**：`agent/competition-server-v1`
 - **测试分支定位**：仅作为设计与风险参考，不复用代码
 
 ## 当前权威文档
 
-1. [比赛服务器完整实施计划V5.0](plans/2026-08-12-moldguard-django-implementation-plan.md)
-2. [Django模型字段V3.0](models/2026-08-13-django-model-field-review.md)
-3. [邮件报工链接契约](contracts/2026-08-13-mail-report-link-contract.md)
-4. [智能体平台与Django关系说明](architecture/2026-08-12-agent-platform-django-relationship.md)
-5. [业务场景说明](business/2026-08-12-moldguard-business-scenarios.md)
-6. [知识库与Django对齐说明](knowledge/2026-08-12-moldguard-kb-django-alignment.md)
-7. [知识库权威确认](decisions/2026-08-13-kb-v1.2-authority-and-mail-report-confirmation.md)
-8. [负责人决策状态](decisions/2026-08-12-owner-decision-checklist.md)
-9. [干净重建决策](decisions/2026-08-13-competition-server-clean-build-confirmation.md)
+1. [一天后端优先实施计划V1.0](plans/2026-08-13-moldguard-one-day-backend-first-plan.md)
+2. [V5.1阻塞项决议](decisions/2026-08-13-v5.1-blocker-resolution.md)
+3. [比赛服务器完整实施计划V5.0](plans/2026-08-12-moldguard-django-implementation-plan.md)
+4. [Django模型字段V3.1](models/2026-08-13-django-model-field-review.md)
+5. [邮件报工链接契约REPORT-FORM-1.1](contracts/2026-08-13-mail-report-link-contract.md)
+6. [智能体平台与Django关系说明](architecture/2026-08-12-agent-platform-django-relationship.md)
+7. [业务场景说明](business/2026-08-12-moldguard-business-scenarios.md)
+8. [知识库与Django对齐说明](knowledge/2026-08-12-moldguard-kb-django-alignment.md)
+9. [知识库权威确认](decisions/2026-08-13-kb-v1.2-authority-and-mail-report-confirmation.md)
+10. [负责人决策状态V1.8](decisions/2026-08-12-owner-decision-checklist.md)
+11. [干净重建决策](decisions/2026-08-13-competition-server-clean-build-confirmation.md)
 
 ## 最终知识库正文
 
@@ -32,10 +36,13 @@
 
 ```text
 MOLDGUARD-KB-1.2知识正文
+→ V5.1阻塞项决议
 → V5.0完整实施计划
-→ V3.0模型字段
-→ REPORT-FORM-1.0接口契约
+→ V3.1模型字段
+→ REPORT-FORM-1.1接口契约
 ```
+
+当天的开发顺序和Codex执行方式，以“一天后端优先实施计划V1.0”为准。
 
 ## 测试分支与正式实现的关系
 
