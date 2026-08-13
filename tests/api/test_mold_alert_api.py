@@ -52,9 +52,13 @@ def test_missing_tonnage_and_invalid_count_use_named_errors(api_client):
 
 @pytest.mark.django_db
 def test_scan_creates_expected_alerts_without_duplicates(seeded_molds, api_client):
-    first = api_client.post("/api/v1/alerts/scan", {}, format="json")
+    first = api_client.post(
+        "/api/v1/alerts/scan", {"client_request_id": "scan-first"}, format="json"
+    )
     first_count = MaintenanceAlert.objects.count()
-    second = api_client.post("/api/v1/alerts/scan", {}, format="json")
+    second = api_client.post(
+        "/api/v1/alerts/scan", {"client_request_id": "scan-second"}, format="json"
+    )
 
     assert first.status_code == 200
     assert first_count == 5
@@ -82,7 +86,7 @@ def test_scan_creates_expected_alerts_without_duplicates(seeded_molds, api_clien
 
 @pytest.mark.django_db
 def test_alert_list_and_not_found_contract(seeded_molds, api_client):
-    api_client.post("/api/v1/alerts/scan", {}, format="json")
+    api_client.post("/api/v1/alerts/scan", {"client_request_id": "scan-alert-list"}, format="json")
     listing = api_client.get("/api/v1/alerts?alert_type=TWO_MONTH_REMINDER")
     missing = api_client.get("/api/v1/alerts/ALT-NOT-FOUND")
 

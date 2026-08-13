@@ -386,3 +386,19 @@ class MaintenanceHistory(models.Model):
 
     def __str__(self):
         return f"{self.history_id} {self.mold_id} {self.event_type}"
+
+
+class ClientRequestRecord(models.Model):
+    client_request_id = models.CharField(primary_key=True, max_length=120)
+    action = models.CharField(max_length=80)
+    object_id = models.CharField(max_length=80, blank=True, default="")
+    request_hash = models.CharField(max_length=64)
+    response_status = models.PositiveSmallIntegerField()
+    response_json = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "client_request_id"]
+
+    def __str__(self):
+        return f"{self.client_request_id} {self.action} {self.object_id}"

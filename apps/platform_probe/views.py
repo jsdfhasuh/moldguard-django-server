@@ -3,6 +3,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework.views import APIView
 
 from .exceptions import ProbeAPIException
+from .idempotency import idempotent
 from .models import KnowledgeSnapshot, MaintenanceAlert, Mold, NotificationReceipt, WorkOrder
 from .responses import success_response
 from .serializers import (
@@ -103,6 +104,7 @@ class MoldMaintenanceStatusView(APIView):
 
 
 class AlertScanView(APIView):
+    @idempotent("ALERT_SCAN")
     def post(self, request):
         serializer = AlertScanSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -147,6 +149,7 @@ def get_work_order(work_order_id):
 
 
 class AlertCreateWorkOrderView(APIView):
+    @idempotent("CREATE_WORK_ORDER", "alert_id")
     def post(self, request, alert_id):
         serializer = CreateWorkOrderSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -198,6 +201,7 @@ class WorkOrderCandidatesView(APIView):
 
 
 class WorkOrderAssignView(APIView):
+    @idempotent("ASSIGN_WORK_ORDER", "work_order_id")
     def post(self, request, work_order_id):
         serializer = AssignSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -210,6 +214,7 @@ class WorkOrderAssignView(APIView):
 
 
 class WorkOrderAutoAssignView(APIView):
+    @idempotent("AUTO_ASSIGN_WORK_ORDER", "work_order_id")
     def post(self, request, work_order_id):
         serializer = AutoAssignSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -277,6 +282,7 @@ class WorkOrderKnowledgeContextView(APIView):
 
 
 class WorkOrderKnowledgeSnapshotView(APIView):
+    @idempotent("SAVE_KNOWLEDGE_SNAPSHOT", "work_order_id")
     def post(self, request, work_order_id):
         work_order = get_work_order(work_order_id)
         ensure_assigned(work_order)
@@ -324,6 +330,7 @@ class WorkOrderEmailContextView(APIView):
 
 
 class WorkOrderNotificationView(APIView):
+    @idempotent("SAVE_NOTIFICATION_RECEIPT", "work_order_id")
     def post(self, request, work_order_id):
         work_order = get_work_order(work_order_id)
         ensure_assigned(work_order)
@@ -354,6 +361,7 @@ class WorkOrderNotificationView(APIView):
 
 
 class WorkOrderStartView(APIView):
+    @idempotent("START_WORK_ORDER", "work_order_id")
     def post(self, request, work_order_id):
         serializer = EmployeeActionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -370,6 +378,7 @@ class WorkOrderStartView(APIView):
 
 
 class WorkOrderPauseView(APIView):
+    @idempotent("PAUSE_WORK_ORDER", "work_order_id")
     def post(self, request, work_order_id):
         serializer = PauseActionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -387,6 +396,7 @@ class WorkOrderPauseView(APIView):
 
 
 class WorkOrderResumeView(APIView):
+    @idempotent("RESUME_WORK_ORDER", "work_order_id")
     def post(self, request, work_order_id):
         serializer = EmployeeActionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -403,6 +413,7 @@ class WorkOrderResumeView(APIView):
 
 
 class WorkOrderCompleteReportView(APIView):
+    @idempotent("COMPLETE_WORK_ORDER", "work_order_id")
     def post(self, request, work_order_id):
         serializer = CompleteReportSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -411,6 +422,7 @@ class WorkOrderCompleteReportView(APIView):
 
 
 class WorkOrderAbnormalReportView(APIView):
+    @idempotent("ABNORMAL_WORK_ORDER", "work_order_id")
     def post(self, request, work_order_id):
         serializer = AbnormalReportCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

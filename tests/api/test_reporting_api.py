@@ -28,7 +28,11 @@ INSPECTION_ITEMS = [
 
 
 def prepare_assigned_work_order(api_client, *, mold_id="MOLD-TEST-001", snapshot=True):
-    api_client.post("/api/v1/alerts/scan", {}, format="json")
+    api_client.post(
+        "/api/v1/alerts/scan",
+        {"client_request_id": f"scan-{mold_id}"},
+        format="json",
+    )
     alert = MaintenanceAlert.objects.get(
         mold_id=mold_id,
         alert_type=MaintenanceAlert.AlertType.MAINTENANCE_DUE,

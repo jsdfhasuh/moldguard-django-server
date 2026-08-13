@@ -61,7 +61,7 @@ class AlertScanSerializer(serializers.Serializer):
         required=False,
         allow_empty=False,
     )
-    client_request_id = serializers.CharField(max_length=120, required=False)
+    client_request_id = serializers.CharField(max_length=120)
 
 
 class EmployeeSerializer(serializers.ModelSerializer):

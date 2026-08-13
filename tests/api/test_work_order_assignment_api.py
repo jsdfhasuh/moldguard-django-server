@@ -7,7 +7,7 @@ from apps.platform_probe.models import Employee, MaintenanceAlert, WorkOrder
 @pytest.fixture
 def scanned_alerts(db, api_client):
     call_command("seed_probe_data", verbosity=0)
-    api_client.post("/api/v1/alerts/scan", {}, format="json")
+    api_client.post("/api/v1/alerts/scan", {"client_request_id": "scan-assignment"}, format="json")
 
 
 def due_alert(mold_id):

@@ -7,7 +7,7 @@ from apps.platform_probe.models import KnowledgeSnapshot, MaintenanceAlert, Noti
 @pytest.fixture
 def assigned_work_order(db, api_client):
     call_command("seed_probe_data", verbosity=0)
-    api_client.post("/api/v1/alerts/scan", {}, format="json")
+    api_client.post("/api/v1/alerts/scan", {"client_request_id": "scan-knowledge"}, format="json")
     alert = MaintenanceAlert.objects.get(
         mold_id="MOLD-TEST-001",
         alert_type=MaintenanceAlert.AlertType.MAINTENANCE_DUE,
@@ -160,7 +160,7 @@ def test_notification_rejects_non_assignee_recipient(assigned_work_order, api_cl
 @pytest.mark.django_db
 def test_unassigned_work_order_cannot_use_knowledge_or_email(api_client, db):
     call_command("seed_probe_data", verbosity=0)
-    api_client.post("/api/v1/alerts/scan", {}, format="json")
+    api_client.post("/api/v1/alerts/scan", {"client_request_id": "scan-unassigned"}, format="json")
     alert = MaintenanceAlert.objects.get(
         mold_id="MOLD-TEST-002",
         alert_type=MaintenanceAlert.AlertType.MAINTENANCE_DUE,
