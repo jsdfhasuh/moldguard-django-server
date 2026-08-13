@@ -73,7 +73,9 @@ docs/             完整计划、V5.1决议、一天执行计划、模型和契�
 knowledge-base/   解压后的最终知识文档、发布清单和校验信息
 ```
 
-仓库当前尚未在 `main` 实现业务代码。后续代码统一进入 `agent/competition-server-v1`。
+`agent/competition-server-v1` 已实现 Batch A 后端 P0；当前阶段为
+`BACKEND_P0_IMPLEMENTED_AWAITING_TEST_DEBUG`。完整业务测试与逐项 Debug、HTML 报工页面和
+P1 异常闭环在后续批次进行。
 
 ## 最终知识库
 
