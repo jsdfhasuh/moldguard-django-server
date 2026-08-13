@@ -6,7 +6,7 @@
 - **适用项目**：MoldGuard 模具保养智能预警与管理智能体
 - **服务器定位**：无角色、无鉴权、无历史导入的最小 Django 测试服务器
 - **权威计划**：`docs/plans/2026-08-12-moldguard-django-implementation-plan.md` V4.1
-- **模型字段**：`docs/models/2026-08-13-django-model-field-review.md` V2.0
+- **模型字段**：`docs/models/2026-08-13-django-model-field-review.md` V2.1
 
 ---
 
