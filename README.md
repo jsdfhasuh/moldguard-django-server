@@ -14,7 +14,9 @@
 目标实施分支：agent/competition-server-v1
 本地测试数据库：SQLite
 比赛部署数据库：MariaDB
-端口：18080
+容器内端口：18080
+比赛宿主端口：127.0.0.1:18081
+旧回退服务端口：127.0.0.1:18080
 数据：DEMO ONLY
 ```
 
@@ -73,9 +75,14 @@ docs/             完整计划、V5.1决议、一天执行计划、模型和契�
 knowledge-base/   解压后的最终知识文档、发布清单和校验信息
 ```
 
-`agent/competition-server-v1` 已实现 Batch A 后端 P0；当前阶段为
-`BACKEND_P0_IMPLEMENTED_AWAITING_TEST_DEBUG`。完整业务测试与逐项 Debug、HTML 报工页面和
-P1 异常闭环在后续批次进行。
+`agent/competition-server-v1` 已完成 P0、P1/P2 比赛范围，当前状态为
+`READY_FOR_COMPETITION`。实现包括 HTML 邮件链接报工、执行状态机、异常继续处理、
+关联修模、tracking、基础统计、自动派工和蓝绿部署脚本。SQLite 全量测试、独立
+MariaDB HTTP smoke、正式域名连续演示和 Nginx 回退均已实际验证。
+
+当前部署使用独立 Compose 项目 `moldguard-competition`、独立目录
+`runtime/competition/mariadb` 和宿主端口 `127.0.0.1:18081`。旧 `moldguard` 栈、
+`127.0.0.1:18080` 及其数据库目录继续保留，用于快速回退。
 
 ## 最终知识库
 
@@ -97,6 +104,16 @@ P1 异常闭环在后续批次进行。
 → 正常完成并复位 / 异常继续处理或关联修模
 → 查询工时、完成率和模具履历
 ```
+
+## 蓝绿部署与回退
+
+- Competition 环境示例：`.env.competition.example`
+- Compose：`compose.yaml`
+- 部署脚本：`scripts/deploy_competition.sh`
+- MariaDB 备份：`scripts/backup_mariadb.sh`
+- Nginx 切换模板：`deploy/nginx/moldguard-competition.conf`
+- 回退脚本：`scripts/rollback_competition.sh`
+- 完整运行手册：[蓝绿部署与回退](docs/deployment-blue-green.md)
 
 ## 关键实现决议
 

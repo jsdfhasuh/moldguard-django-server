@@ -40,7 +40,7 @@ class MetaView(EnvelopeAPIView):
                 "default_port": int(os.getenv("MOLDGUARD_HOST_PORT", "18081")),
                 "authentication_required": False,
                 "data_classification": "DEMO_ONLY",
-                "implementation_status": "COMPETITION_FEATURES_IMPLEMENTED_AWAITING_DEPLOYMENT",
+                "implementation_status": "READY_FOR_COMPETITION",
             },
             request=request,
         )
