@@ -217,12 +217,12 @@ CANCELLED
 | `inspection_results_json` | `JSONField(default=list)` | 是 | 最终点检提交结果 |
 | `email_recipient` | `EmailField(null=True,blank=True)` | 否 | 收件人 |
 | `email_subject` | `CharField(240,blank=True,default='')` | 否 | 邮件主题 |
-| `email_status` | `CharField(24,default='NOT_SENT')` | 是 | `NOT_SENT/SENT/FAILED` |
-| `email_message_id` | `CharField(200,blank=True,default='')` | 否 | 平台消息ID |
+| `email_status` | `CharField(24,default='NOT_SENT')` | 是 | `NOT_SENT/SENDING/FAILED/SENT/OUTCOME_UNKNOWN` |
+| `email_message_id` | `CharField(200,blank=True,default='')` | 否 | Django生成并发送的SMTP Message-ID |
 | `email_sent_at` | `DateTimeField(null=True,blank=True)` | 否 | 发送时间 |
 | `email_error` | `TextField(blank=True,default='')` | 否 | 失败信息 |
 
-知识包在 `email_status=SENT` 或已报工后不可覆盖。
+知识包在 `email_status=SENDING/SENT/OUTCOME_UNKNOWN` 或已报工后不可覆盖。
 
 ### 4.4 报工字段
 
@@ -310,6 +310,16 @@ updated_at
 | `note` | `TextField(blank=True,default='')` | 否 | 说明 |
 | `request_key` | `CharField(200,unique=True)` | 是 | 防重复履历和复位 |
 | `created_at` | `DateTimeField(auto_now_add=True)` | 是 | 创建时间 |
+
+SMTP 两阶段幂等使用同一模型的中间占位：
+
+```text
+response_status=102
+response_json={"state":"IN_PROGRESS"}
+```
+
+该占位先提交，SMTP调用在数据库事务外执行；最终短事务同时写工单邮件状态、
+`EMAIL_SENT/EMAIL_FAILED/EMAIL_OUTCOME_UNKNOWN` 事件和最终响应。
 
 仅最终正常完成的工单创建履历。异常报工不创建最终履历。修模子工单可创建不复位的维修履历。
 

@@ -415,38 +415,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpenAPIEnvelope'
           description: ''
-  /api/v1/work-orders/{work_order_id}/email-result:
-    post:
-      operationId: v1_work_orders_email_result_create
-      parameters:
-      - in: path
-        name: work_order_id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/EmailResult'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/EmailResult'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/EmailResult'
-        required: true
-      security:
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OpenAPIEnvelope'
-          description: ''
   /api/v1/work-orders/{work_order_id}/knowledge:
     post:
       operationId: v1_work_orders_knowledge_create
@@ -627,6 +595,62 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpenAPIEnvelope'
           description: ''
+  /api/v1/work-orders/{work_order_id}/send-email:
+    post:
+      operationId: v1_work_orders_send_email_create
+      parameters:
+      - in: path
+        name: work_order_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendEmail'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SendEmail'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SendEmail'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAPIEnvelope'
+          description: 派工邮件发送成功
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAPIEnvelope'
+          description: 请求字段校验失败
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAPIEnvelope'
+          description: 工单不存在
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAPIEnvelope'
+          description: 邮件发送前置条件冲突
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAPIEnvelope'
+          description: SMTP明确失败或发送结果无法确认
   /api/v1/work-orders/{work_order_id}/start:
     post:
       operationId: v1_work_orders_start_create
@@ -753,34 +777,6 @@ components:
           maxLength: 120
       required:
       - client_request_id
-    EmailResult:
-      type: object
-      properties:
-        client_request_id:
-          type: string
-          maxLength: 120
-        status:
-          $ref: '#/components/schemas/StatusEnum'
-        message_id:
-          type: string
-          default: ''
-          maxLength: 200
-        sent_at:
-          type: string
-          format: date-time
-          nullable: true
-        knowledge_package_hash:
-          type: string
-          maxLength: 64
-          minLength: 64
-        error_message:
-          type: string
-          default: ''
-          maxLength: 4000
-      required:
-      - client_request_id
-      - knowledge_package_hash
-      - status
     InspectionResult:
       type: object
       properties:
@@ -970,11 +966,11 @@ components:
         * `PASS` - PASS
         * `FAIL` - FAIL
         * `NOT_APPLICABLE` - NOT_APPLICABLE
-    StatusEnum:
-      enum:
-      - FAILED
-      - SENT
-      type: string
-      description: |-
-        * `FAILED` - FAILED
-        * `SENT` - SENT
+    SendEmail:
+      type: object
+      properties:
+        client_request_id:
+          type: string
+          maxLength: 120
+      required:
+      - client_request_id

@@ -1,5 +1,9 @@
 # MoldGuard 一天后端优先实施计划
 
+> **邮件责任覆盖说明（2026-08-13）**：本文的 `email-result` 和平台发信步骤是历史
+> 计划，已由 `docs/decisions/2026-08-13-django-smtp-delivery.md` 覆盖。正式接口为
+> `POST /api/v1/work-orders/{id}/send-email`，由 Django 通过 SMTP 发信。
+
 - **状态**：`IMPLEMENTATION_READY_ONE_DAY`
 - **版本**：V1.0
 - **日期**：2026-08-13

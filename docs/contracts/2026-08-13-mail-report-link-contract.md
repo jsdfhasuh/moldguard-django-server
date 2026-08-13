@@ -71,14 +71,14 @@ knowledge_package_hash = SHA-256
 允许覆盖：
 
 ```text
-email_status != SENT
+email_status为NOT_SENT或FAILED
 且工单尚未报工
 ```
 
 禁止覆盖：
 
 ```text
-email_status == SENT
+email_status为SENDING、SENT或OUTCOME_UNKNOWN
 或工单已有报工结果
 ```
 
@@ -89,7 +89,7 @@ KNOWLEDGE_PACKAGE_LOCKED
 KNOWLEDGE_VERSION_MISMATCH
 ```
 
-## 3. 邮件上下文
+## 3. SMTP派工邮件
 
 ```http
 GET /api/v1/work-orders/{work_order_id}/email-context
@@ -120,39 +120,61 @@ report_button_text
 report_form_schema_version
 ```
 
-平台发送邮件后回写：
+`email-context` 只用于预览和调试，不改变邮件状态。
+
+Django发送接口：
 
 ```http
-POST /api/v1/work-orders/{work_order_id}/email-result
+POST /api/v1/work-orders/{work_order_id}/send-email
 ```
 
-成功示例：
+请求只允许：
 
 ```json
 {
-  "client_request_id": "mail-WO-001-sent",
-  "status": "SENT",
-  "message_id": "MAIL-001",
-  "sent_at": "2026-08-13T16:00:00+08:00",
-  "knowledge_package_hash": "abc123...",
-  "error_message": ""
+  "client_request_id": "send-email-WO-001-001"
 }
 ```
 
-失败示例：
+不得接受 `recipient`、`subject`、`body`、`html_body` 或 `from_email`。收件人固定为
+`work_order.assignee.email`；主题和正文由Django模板渲染。
 
-```json
-{
-  "client_request_id": "mail-WO-001-failed",
-  "status": "FAILED",
-  "message_id": "",
-  "sent_at": null,
-  "knowledge_package_hash": "abc123...",
-  "error_message": "SMTP timeout"
-}
+成功响应数据至少包含：
+
+```text
+work_order_id
+old_email_status
+new_email_status=SENT
+email_message_id
+email_sent_at
+email_recipient
+knowledge_snapshot_version
+knowledge_package_hash
+knowledge_locked_at
+report_url
 ```
 
-`SENT` 成功回写后锁定知识包。
+邮件同时包含 `text/plain` 与 `text/html`。两种正文都包含工单、模具、触发依据、
+标准工时、完成期限、知识包全部点检项、安全注意事项、知识版本、知识哈希和
+`report_url`。HTML保持Django默认自动转义。
+
+状态：
+
+```text
+NOT_SENT / FAILED → SENDING → SENT
+NOT_SENT / FAILED → SENDING → FAILED
+NOT_SENT / FAILED → SENDING → OUTCOME_UNKNOWN
+```
+
+- `SENT` 锁定知识包，新发送ID返回 `EMAIL_ALREADY_SENT`；
+- `FAILED` 不锁定，允许使用新ID重试；
+- `OUTCOME_UNKNOWN` 锁定并禁止自动重发；
+- 同一ID的最终结果精确重放，不再次发送；
+- 相同ID处于占位期返回 `EMAIL_SEND_IN_PROGRESS`；
+- 公开API和OpenAPI不提供 `email-result`。
+
+SMTP发送使用专用两阶段幂等：先短事务提交102占位，再在事务外调用SMTP，最后短
+事务同时保存工单结果、事件和幂等最终响应。
 
 ## 4. HTML 报工入口
 
@@ -356,6 +378,11 @@ replayed=true
 | 409 | `KNOWLEDGE_VERSION_MISMATCH` | 知识版本不一致 |
 | 409 | `KNOWLEDGE_PACKAGE_HASH_MISMATCH` | 知识哈希不一致 |
 | 409 | `KNOWLEDGE_PACKAGE_LOCKED` | 已发送邮件或已报工，知识不可覆盖 |
+| 409 | `EMAIL_ALREADY_SENT` | 邮件已经发送，不允许使用新ID重复发送 |
+| 409 | `EMAIL_SEND_IN_PROGRESS` | 相同发送请求仍在执行 |
+| 409 | `EMAIL_SEND_OUTCOME_UNKNOWN` | 历史发送结果不明，禁止自动重发 |
+| 502 | `EMAIL_SEND_FAILED` | SMTP明确失败，可使用新ID重试 |
+| 502 | `EMAIL_SEND_OUTCOME_UNKNOWN` | SMTP结果无法确认，不自动重试 |
 | 409 | `REPORT_ALREADY_SUBMITTED` | 已完成工单重复提交不同内容 |
 | 409 | `CLIENT_REQUEST_CONFLICT` | 相同幂等ID对应不同请求 |
 

@@ -1,5 +1,10 @@
 # MoldGuard 比赛服务器完整实施计划
 
+> **邮件责任覆盖说明（2026-08-13）**：比赛平台不支持发信。本文关于平台组装/发送
+> 邮件、`email-result` 和“不实现Django SMTP”的历史计划，均由
+> `docs/decisions/2026-08-13-django-smtp-delivery.md` 覆盖。当前正式流程为平台回写
+> 知识包并调用 Django `send-email`，由 Django 通过 SMTP 发送。
+
 - **计划状态**：`IMPLEMENTATION_READY_CLEAN_BUILD`
 - **版本**：V5.0
 - **日期**：2026-08-13

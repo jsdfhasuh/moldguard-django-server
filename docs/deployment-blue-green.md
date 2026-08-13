@@ -22,6 +22,25 @@ docker compose --env-file .env.competition config --quiet
 
 生成脚本只在 `.env.competition` 不存在时创建文件，不会覆盖既有配置，也不会打印密钥。
 
+部署前必须填写真实 SMTP 与比赛测试收件邮箱：
+
+```text
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST
+EMAIL_PORT
+EMAIL_HOST_USER
+EMAIL_HOST_PASSWORD
+EMAIL_USE_TLS或EMAIL_USE_SSL（二选一或均关闭）
+EMAIL_TIMEOUT=15
+DEFAULT_FROM_EMAIL
+EMAIL_MESSAGE_ID_DOMAIN
+DEMO_EMPLOYEE_1_EMAIL ... DEMO_EMPLOYEE_4_EMAIL
+```
+
+Compose 固定设置 `MOLDGUARD_REQUIRE_SMTP=true`，会拒绝 locmem/console、示例SMTP主机、
+示例发件人和示例Message-ID域。`EMAIL_USE_TLS` 与 `EMAIL_USE_SSL` 同时为true时Django
+启动失败。任何日志、命令回显和工单API均不得输出 SMTP 密码。
+
 ## 2. 并行部署与验证
 
 ```bash
@@ -31,6 +50,11 @@ scripts/deploy_competition.sh
 curl -f http://127.0.0.1:18081/api/v1/health
 curl -f http://127.0.0.1:18081/api/v1/meta
 ```
+
+部署 smoke 会调用 `send-email` 并向当前 DEMO 工单被派工邮箱真实发送邮件。执行前必须
+确认这些地址是授权测试邮箱。HTTP 200 与 `email_status=SENT` 只证明 SMTP 后端接受了
+邮件；最终送达还必须人工检查收件箱中的纯文本/HTML内容、Message-ID、知识哈希和
+`report_url`。
 
 新 MariaDB 固定使用 `runtime/competition/mariadb`，不得指向旧仓库的
 `runtime/mariadb`。
