@@ -10,6 +10,11 @@ from .views import (
     MoldDetailView,
     MoldListView,
     MoldMaintenanceStatusView,
+    ProbeRunContextView,
+    ProbeRunCreateView,
+    ProbeRunReportView,
+    ProbeSchedulerHeartbeatView,
+    ProbeVariableTestView,
     WorkOrderAbnormalReportView,
     WorkOrderAssignView,
     WorkOrderAutoAssignView,
@@ -32,6 +37,27 @@ app_name = "platform_probe"
 urlpatterns = [
     path("health", HealthView.as_view(), name="health"),
     path("meta", MetaView.as_view(), name="meta"),
+    path("probe/runs", ProbeRunCreateView.as_view(), name="probe-run-create"),
+    path(
+        "probe/runs/<str:run_id>/context",
+        ProbeRunContextView.as_view(),
+        name="probe-run-context",
+    ),
+    path(
+        "probe/runs/<str:run_id>/variable-test",
+        ProbeVariableTestView.as_view(),
+        name="probe-variable-test",
+    ),
+    path(
+        "probe/scheduler-heartbeat",
+        ProbeSchedulerHeartbeatView.as_view(),
+        name="probe-scheduler-heartbeat",
+    ),
+    path(
+        "probe/runs/<str:run_id>/report",
+        ProbeRunReportView.as_view(),
+        name="probe-run-report",
+    ),
     path("molds", MoldListView.as_view(), name="mold-list"),
     path("molds/<str:mold_id>", MoldDetailView.as_view(), name="mold-detail"),
     path(

@@ -9,6 +9,8 @@ from .models import (
     Mold,
     NotificationReceipt,
     PauseSegment,
+    ProbeRun,
+    ProbeStep,
     WorkOrder,
     WorkOrderEvent,
     WorkReport,
@@ -275,3 +277,46 @@ class MaintenanceHistorySerializer(serializers.ModelSerializer):
             "cycle_version_after",
             "created_at",
         ]
+
+
+class ProbeRunCreateSerializer(serializers.Serializer):
+    platform_name = serializers.CharField(max_length=120)
+    tester = serializers.CharField(max_length=120)
+    mode = serializers.ChoiceField(choices=ProbeRun.Mode.choices)
+    client_request_id = serializers.CharField(max_length=120)
+
+
+class CapabilityResultSerializer(serializers.Serializer):
+    capability_code = serializers.ChoiceField(
+        choices=[f"P{index:02d}" for index in range(5, 12)] + ["P13"]
+    )
+    status = serializers.ChoiceField(choices=ProbeStep.Status.choices)
+    evidence = serializers.CharField(required=False, allow_blank=True)
+    impact = serializers.CharField(required=False, allow_blank=True)
+
+
+class ProbeVariableTestSerializer(serializers.Serializer):
+    dynamic_variables = serializers.JSONField()
+    nested_json = serializers.JSONField()
+    array_items = serializers.ListField(child=serializers.JSONField())
+    capability_results = CapabilityResultSerializer(many=True, required=False, default=list)
+    client_request_id = serializers.CharField(max_length=120)
+
+    def validate_capability_results(self, items):
+        codes = [item["capability_code"] for item in items]
+        if len(codes) != len(set(codes)):
+            raise serializers.ValidationError("capability_code不能重复")
+        mode = self.context["probe_run"].mode
+        if mode == ProbeRun.Mode.STRICT and any(
+            item["status"] == ProbeStep.Status.PASS_WITH_ADAPTER for item in items
+        ):
+            raise serializers.ValidationError("STRICT模式不能标记PASS_WITH_ADAPTER")
+        return items
+
+
+class SchedulerHeartbeatSerializer(serializers.Serializer):
+    run_id = serializers.CharField(max_length=40)
+    platform_name = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    heartbeat_at = serializers.DateTimeField(required=False)
+    evidence = serializers.CharField(required=False, allow_blank=True)
+    client_request_id = serializers.CharField(max_length=120)

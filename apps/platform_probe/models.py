@@ -43,6 +43,10 @@ def new_history_id():
     return _prefixed_id("HIS")
 
 
+def new_probe_run_id():
+    return _prefixed_id("PRB")
+
+
 class Mold(models.Model):
     class MoldType(models.TextChoices):
         INJECTION = "INJECTION", "注塑模具"
@@ -402,3 +406,62 @@ class ClientRequestRecord(models.Model):
 
     def __str__(self):
         return f"{self.client_request_id} {self.action} {self.object_id}"
+
+
+class ProbeRun(models.Model):
+    class Mode(models.TextChoices):
+        STRICT = "STRICT", "严格模式"
+        COMPATIBILITY = "COMPATIBILITY", "兼容模式"
+
+    class Status(models.TextChoices):
+        RUNNING = "RUNNING", "进行中"
+        COMPLETED = "COMPLETED", "已完成"
+
+    run_id = models.CharField(
+        primary_key=True,
+        max_length=40,
+        default=new_probe_run_id,
+        editable=False,
+    )
+    platform_name = models.CharField(max_length=120)
+    tester = models.CharField(max_length=120)
+    mode = models.CharField(max_length=30, choices=Mode.choices)
+    status = models.CharField(max_length=30, choices=Status.choices, default=Status.RUNNING)
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-started_at", "run_id"]
+
+    def __str__(self):
+        return f"{self.run_id} {self.platform_name} {self.mode}"
+
+
+class ProbeStep(models.Model):
+    class Status(models.TextChoices):
+        PASS_NATIVE = "PASS_NATIVE", "原生通过"
+        PASS_WITH_ADAPTER = "PASS_WITH_ADAPTER", "适配通过"
+        MANUAL_VERIFIED = "MANUAL_VERIFIED", "人工确认"
+        EXTERNAL_REQUIRED = "EXTERNAL_REQUIRED", "需要外部能力"
+        BLOCKED = "BLOCKED", "阻塞"
+        NOT_TESTED = "NOT_TESTED", "未测试"
+
+    run = models.ForeignKey(ProbeRun, on_delete=models.CASCADE, related_name="steps")
+    capability_code = models.CharField(max_length=40)
+    status = models.CharField(max_length=30, choices=Status.choices)
+    request_snapshot_json = models.JSONField(default=dict)
+    response_snapshot_json = models.JSONField(default=dict)
+    evidence = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["capability_code"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["run", "capability_code"],
+                name="uniq_probe_step_per_capability",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.run_id} {self.capability_code} {self.status}"

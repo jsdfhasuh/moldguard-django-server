@@ -4,7 +4,15 @@ from rest_framework.views import APIView
 
 from .exceptions import ProbeAPIException
 from .idempotency import idempotent
-from .models import KnowledgeSnapshot, MaintenanceAlert, Mold, NotificationReceipt, WorkOrder
+from .models import (
+    KnowledgeSnapshot,
+    MaintenanceAlert,
+    Mold,
+    NotificationReceipt,
+    ProbeRun,
+    ProbeStep,
+    WorkOrder,
+)
 from .responses import success_response
 from .serializers import (
     AbnormalReportCreateSerializer,
@@ -24,6 +32,9 @@ from .serializers import (
     NotificationReceiptSerializer,
     PauseActionSerializer,
     PauseSegmentSerializer,
+    ProbeRunCreateSerializer,
+    ProbeVariableTestSerializer,
+    SchedulerHeartbeatSerializer,
     WorkOrderEventSerializer,
     WorkOrderSerializer,
     WorkReportSerializer,
@@ -33,6 +44,12 @@ from .services.assignment_service import (
     assign_employee,
     auto_assign_employee,
     candidates_for,
+)
+from .services.probe_report_service import (
+    build_probe_report,
+    expected_context,
+    get_probe_run,
+    record_step,
 )
 from .services.reporting_service import (
     abnormal_work_order,
@@ -428,3 +445,150 @@ class WorkOrderAbnormalReportView(APIView):
         serializer.is_valid(raise_exception=True)
         result = abnormal_work_order(work_order_id, serializer.validated_data)
         return success_response(result, message="异常报工已保存", request=request)
+
+
+class ProbeRunCreateView(APIView):
+    @idempotent("CREATE_PROBE_RUN")
+    def post(self, request):
+        serializer = ProbeRunCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        run = ProbeRun.objects.create(
+            platform_name=serializer.validated_data["platform_name"],
+            tester=serializer.validated_data["tester"],
+            mode=serializer.validated_data["mode"],
+        )
+        record_step(
+            run,
+            "P01_POST",
+            ProbeStep.Status.PASS_NATIVE,
+            request_snapshot=dict(request.data),
+            response_snapshot={"run_id": run.run_id},
+            evidence="平台成功调用POST /api/v1/probe/runs",
+        )
+        return success_response(
+            {
+                "run_id": run.run_id,
+                "platform_name": run.platform_name,
+                "tester": run.tester,
+                "mode": run.mode,
+                "status": run.status,
+                "started_at": run.started_at.isoformat(),
+                "context_url": f"/api/v1/probe/runs/{run.run_id}/context",
+            },
+            message="探测运行已创建",
+            request=request,
+            status=201,
+        )
+
+
+class ProbeRunContextView(APIView):
+    def get(self, request, run_id):
+        run = get_probe_run(run_id)
+        context = expected_context(run)
+        record_step(
+            run,
+            "P01_GET",
+            ProbeStep.Status.PASS_NATIVE,
+            response_snapshot={"context_url": request.path},
+            evidence=f"平台成功调用动态GET路径 {request.path}",
+        )
+        return success_response(
+            {
+                "run_id": run.run_id,
+                "mode": run.mode,
+                "challenge": context,
+                "instructions": {
+                    "variable_test_url": f"/api/v1/probe/runs/{run.run_id}/variable-test",
+                    "required_action": "将challenge中的三个字段原样回传",
+                },
+            },
+            request=request,
+        )
+
+
+class ProbeVariableTestView(APIView):
+    @idempotent("PROBE_VARIABLE_TEST", "run_id")
+    def post(self, request, run_id):
+        run = get_probe_run(run_id)
+        serializer = ProbeVariableTestSerializer(data=request.data, context={"probe_run": run})
+        serializer.is_valid(raise_exception=True)
+        expected = expected_context(run)
+        submitted = serializer.validated_data
+        checks = {
+            "P02": submitted["dynamic_variables"] == expected["dynamic_variables"],
+            "P03": submitted["nested_json"] == expected["nested_json"],
+            "P04": submitted["array_items"] == expected["array_items"],
+        }
+        failures = [code for code, passed in checks.items() if not passed]
+        if failures:
+            raise ProbeAPIException(
+                "PROBE_VARIABLE_MISMATCH",
+                "动态变量、嵌套JSON或数组回传不匹配",
+                errors=[{"failed_capabilities": failures, "expected": expected}],
+            )
+        for code in checks:
+            record_step(
+                run,
+                code,
+                ProbeStep.Status.PASS_NATIVE,
+                request_snapshot={code: submitted},
+                response_snapshot={"matched": True},
+                evidence=f"{code}严格模式挑战原样回传成功",
+            )
+        for item in submitted["capability_results"]:
+            record_step(
+                run,
+                item["capability_code"],
+                item["status"],
+                request_snapshot=item,
+                response_snapshot={"impact": item.get("impact", "")},
+                evidence=item.get("evidence", ""),
+            )
+        return success_response(
+            {
+                "run_id": run.run_id,
+                "matched": True,
+                "verified_capabilities": list(checks),
+                "roundtrip": {
+                    "dynamic_variables": submitted["dynamic_variables"],
+                    "nested_json": submitted["nested_json"],
+                    "array_items": submitted["array_items"],
+                },
+            },
+            message="变量、嵌套JSON和数组探测通过",
+            request=request,
+        )
+
+
+class ProbeSchedulerHeartbeatView(APIView):
+    @idempotent("PROBE_SCHEDULER_HEARTBEAT")
+    def post(self, request):
+        serializer = SchedulerHeartbeatSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        run = get_probe_run(serializer.validated_data["run_id"])
+        received_at = timezone.now()
+        heartbeat_at = serializer.validated_data.get("heartbeat_at", received_at)
+        record_step(
+            run,
+            "P12",
+            ProbeStep.Status.PASS_NATIVE,
+            request_snapshot=dict(request.data),
+            response_snapshot={"received_at": received_at.isoformat()},
+            evidence=serializer.validated_data.get("evidence") or "平台成功调用scheduler-heartbeat",
+        )
+        return success_response(
+            {
+                "run_id": run.run_id,
+                "heartbeat_at": heartbeat_at.isoformat(),
+                "received_at": received_at.isoformat(),
+                "scheduler_capability": "PASS_NATIVE",
+            },
+            message="定时心跳已记录",
+            request=request,
+        )
+
+
+class ProbeRunReportView(APIView):
+    def get(self, request, run_id):
+        run = get_probe_run(run_id)
+        return success_response(build_probe_report(run), request=request)
