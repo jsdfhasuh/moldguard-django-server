@@ -1,0 +1,76 @@
+{
+  "knowledge_version": "1.2",
+  "snapshot": "MOLDGUARD-KB-1.2",
+  "status": "FINAL_FROZEN",
+  "release_date": "2026-08-13",
+  "authoritative_files": [
+    "MoldGuard_模具保养知识库_最终冻结版V1.2.md",
+    "MoldGuard_KB_V1.2/01_触发保养标准.md",
+    "MoldGuard_KB_V1.2/02_保养内容_点检_储放_故障工时与邮件链接报工.md",
+    "MoldGuard_KB_结构化条目V1.2.jsonl",
+    "MoldGuard_KB_V1.2_校验报告.json",
+    "MoldGuard_模具保养知识库_最终上传包V1.2.zip"
+  ],
+  "supersedes": [
+    "V0.1",
+    "V0.2",
+    "V0.3",
+    "V0.4",
+    "V1.0",
+    "V1.1"
+  ],
+  "upload_package": "MoldGuard_模具保养知识库_最终上传包V1.2.zip",
+  "upload_package_contents": [
+    "01_触发保养标准.md",
+    "02_保养内容_点检_储放_故障工时与邮件链接报工.md"
+  ],
+  "decision_selections": [
+    "1B",
+    "2A",
+    "3A",
+    "4A-first_production_at",
+    "5A",
+    "6A",
+    "7A",
+    "8A",
+    "9A",
+    "10A",
+    "11A"
+  ],
+  "report_link_contract": {
+    "report_method": "WEB_FORM",
+    "report_path_template": "/report/{work_order_id}",
+    "report_form_schema_version": "REPORT-FORM-1.0",
+    "report_url_source": "DJANGO_RESPONSE"
+  },
+  "files": {
+    "MoldGuard_模具保养知识库_最终冻结版V1.2.md": {
+      "bytes": 50258,
+      "sha256": "c5958b7b9d393995ddc170d7b042365cf79c4fb00ae68fd0289c603ffb0538cd"
+    },
+    "MoldGuard_KB_V1.2/01_触发保养标准.md": {
+      "bytes": 10987,
+      "sha256": "57bb8cc1434f92a6b45c2813855e286defdf8e6d6f10369b469d58a38a4c5359"
+    },
+    "MoldGuard_KB_V1.2/02_保养内容_点检_储放_故障工时与邮件链接报工.md": {
+      "bytes": 42744,
+      "sha256": "52487f3412ee252dc18c5da980deba9e4c7aa8c5f19eed382a4d9c5c08db9c16"
+    },
+    "MoldGuard_KB_结构化条目V1.2.jsonl": {
+      "bytes": 189443,
+      "sha256": "0cbdbc3b3a1b6201d63561df3778fa7e6113553eec8cf25348b40ae3d2da4fb6"
+    },
+    "MoldGuard_模具保养知识库_最终上传包V1.2.zip": {
+      "bytes": 18711,
+      "sha256": "99acdbdaa3597a4375104bafef56270fa244b0418ed28113637bcbfa0bdea319",
+      "members": [
+        "01_触发保养标准.md",
+        "02_保养内容_点检_储放_故障工时与邮件链接报工.md"
+      ]
+    },
+    "MoldGuard_KB_V1.2_校验报告.json": {
+      "bytes": 2315,
+      "sha256": "2688205d158f0af42df759be554582db922e17be5b71001b9310f475bd8b78c4"
+    }
+  }
+}
