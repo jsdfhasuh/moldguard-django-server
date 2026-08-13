@@ -6,25 +6,39 @@ from .exceptions import ProbeAPIException
 from .models import KnowledgeSnapshot, MaintenanceAlert, Mold, NotificationReceipt, WorkOrder
 from .responses import success_response
 from .serializers import (
+    AbnormalReportCreateSerializer,
     AlertScanSerializer,
     AssignSerializer,
     AutoAssignSerializer,
+    CompleteReportSerializer,
     CreateWorkOrderSerializer,
+    EmployeeActionSerializer,
     EmployeeSerializer,
     KnowledgeSnapshotCreateSerializer,
     KnowledgeSnapshotSerializer,
     MaintenanceAlertSerializer,
+    MaintenanceHistorySerializer,
     MoldSerializer,
     NotificationCreateSerializer,
     NotificationReceiptSerializer,
+    PauseActionSerializer,
+    PauseSegmentSerializer,
     WorkOrderEventSerializer,
     WorkOrderSerializer,
+    WorkReportSerializer,
 )
 from .services.alert_service import create_work_order, scan_molds
 from .services.assignment_service import (
     assign_employee,
     auto_assign_employee,
     candidates_for,
+)
+from .services.reporting_service import (
+    abnormal_work_order,
+    complete_work_order,
+    pause_work_order,
+    resume_work_order,
+    start_work_order,
 )
 from .services.trigger_service import calculate_maintenance_status
 
@@ -210,13 +224,27 @@ class WorkOrderAutoAssignView(APIView):
 class WorkOrderHistoryView(APIView):
     def get(self, request, work_order_id):
         work_order = get_work_order(work_order_id)
-        return success_response(
-            {
-                "work_order_id": work_order.work_order_id,
-                "events": WorkOrderEventSerializer(work_order.events.all(), many=True).data,
-            },
-            request=request,
-        )
+        data = {
+            "work_order_id": work_order.work_order_id,
+            "events": WorkOrderEventSerializer(work_order.events.all(), many=True).data,
+            "pause_segments": PauseSegmentSerializer(
+                work_order.pause_segments.all(), many=True
+            ).data,
+            "work_report": None,
+            "abnormal_report": None,
+            "maintenance_history": None,
+        }
+        if hasattr(work_order, "work_report"):
+            data["work_report"] = WorkReportSerializer(work_order.work_report).data
+        if hasattr(work_order, "abnormal_report"):
+            from .serializers import AbnormalReportSerializer
+
+            data["abnormal_report"] = AbnormalReportSerializer(work_order.abnormal_report).data
+        if hasattr(work_order, "maintenance_history_entry"):
+            data["maintenance_history"] = MaintenanceHistorySerializer(
+                work_order.maintenance_history_entry
+            ).data
+        return success_response(data, request=request)
 
 
 def ensure_assigned(work_order):
@@ -323,3 +351,68 @@ class WorkOrderNotificationView(APIView):
             request=request,
             status=201,
         )
+
+
+class WorkOrderStartView(APIView):
+    def post(self, request, work_order_id):
+        serializer = EmployeeActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        work_order = start_work_order(
+            work_order_id,
+            serializer.validated_data["employee_id"],
+            serializer.validated_data.get("occurred_at"),
+        )
+        return success_response(
+            WorkOrderSerializer(get_work_order(work_order.work_order_id)).data,
+            message="工单已开工",
+            request=request,
+        )
+
+
+class WorkOrderPauseView(APIView):
+    def post(self, request, work_order_id):
+        serializer = PauseActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        work_order = pause_work_order(
+            work_order_id,
+            serializer.validated_data["employee_id"],
+            serializer.validated_data.get("reason", ""),
+            serializer.validated_data.get("occurred_at"),
+        )
+        return success_response(
+            WorkOrderSerializer(get_work_order(work_order.work_order_id)).data,
+            message="工单已暂停",
+            request=request,
+        )
+
+
+class WorkOrderResumeView(APIView):
+    def post(self, request, work_order_id):
+        serializer = EmployeeActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        work_order = resume_work_order(
+            work_order_id,
+            serializer.validated_data["employee_id"],
+            serializer.validated_data.get("occurred_at"),
+        )
+        return success_response(
+            WorkOrderSerializer(get_work_order(work_order.work_order_id)).data,
+            message="工单已恢复",
+            request=request,
+        )
+
+
+class WorkOrderCompleteReportView(APIView):
+    def post(self, request, work_order_id):
+        serializer = CompleteReportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = complete_work_order(work_order_id, serializer.validated_data)
+        return success_response(result, message="报工完成", request=request)
+
+
+class WorkOrderAbnormalReportView(APIView):
+    def post(self, request, work_order_id):
+        serializer = AbnormalReportCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = abnormal_work_order(work_order_id, serializer.validated_data)
+        return success_response(result, message="异常报工已保存", request=request)

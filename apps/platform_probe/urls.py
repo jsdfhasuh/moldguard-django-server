@@ -10,9 +10,11 @@ from .views import (
     MoldDetailView,
     MoldListView,
     MoldMaintenanceStatusView,
+    WorkOrderAbnormalReportView,
     WorkOrderAssignView,
     WorkOrderAutoAssignView,
     WorkOrderCandidatesView,
+    WorkOrderCompleteReportView,
     WorkOrderDetailView,
     WorkOrderEmailContextView,
     WorkOrderHistoryView,
@@ -20,6 +22,9 @@ from .views import (
     WorkOrderKnowledgeSnapshotView,
     WorkOrderListView,
     WorkOrderNotificationView,
+    WorkOrderPauseView,
+    WorkOrderResumeView,
+    WorkOrderStartView,
 )
 
 app_name = "platform_probe"
@@ -87,5 +92,30 @@ urlpatterns = [
         "work-orders/<str:work_order_id>/notifications",
         WorkOrderNotificationView.as_view(),
         name="work-order-notifications",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/start",
+        WorkOrderStartView.as_view(),
+        name="work-order-start",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/pause",
+        WorkOrderPauseView.as_view(),
+        name="work-order-pause",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/resume",
+        WorkOrderResumeView.as_view(),
+        name="work-order-resume",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/report-complete",
+        WorkOrderCompleteReportView.as_view(),
+        name="work-order-report-complete",
+    ),
+    path(
+        "work-orders/<str:work_order_id>/report-abnormal",
+        WorkOrderAbnormalReportView.as_view(),
+        name="work-order-report-abnormal",
     ),
 ]

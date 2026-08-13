@@ -27,6 +27,22 @@ def new_notification_id():
     return _prefixed_id("NTF")
 
 
+def new_pause_id():
+    return _prefixed_id("PAUSE")
+
+
+def new_report_id():
+    return _prefixed_id("RPT")
+
+
+def new_abnormal_report_id():
+    return _prefixed_id("ABN")
+
+
+def new_history_id():
+    return _prefixed_id("HIS")
+
+
 class Mold(models.Model):
     class MoldType(models.TextChoices):
         INJECTION = "INJECTION", "注塑模具"
@@ -250,3 +266,123 @@ class NotificationReceipt(models.Model):
 
     def __str__(self):
         return f"{self.notification_id} {self.work_order_id} {self.status}"
+
+
+class PauseSegment(models.Model):
+    pause_id = models.CharField(
+        primary_key=True,
+        max_length=40,
+        default=new_pause_id,
+        editable=False,
+    )
+    work_order = models.ForeignKey(
+        WorkOrder,
+        on_delete=models.CASCADE,
+        related_name="pause_segments",
+    )
+    paused_at = models.DateTimeField()
+    resumed_at = models.DateTimeField(null=True, blank=True)
+    reason = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["paused_at", "pause_id"]
+
+    def __str__(self):
+        return f"{self.pause_id} {self.work_order_id}"
+
+
+class WorkReport(models.Model):
+    class ReportType(models.TextChoices):
+        COMPLETE = "COMPLETE", "正常报工"
+        ABNORMAL = "ABNORMAL", "异常报工"
+
+    report_id = models.CharField(
+        primary_key=True,
+        max_length=40,
+        default=new_report_id,
+        editable=False,
+    )
+    work_order = models.OneToOneField(
+        WorkOrder,
+        on_delete=models.PROTECT,
+        related_name="work_report",
+    )
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name="work_reports")
+    report_type = models.CharField(max_length=20, choices=ReportType.choices)
+    started_at = models.DateTimeField()
+    completed_at = models.DateTimeField()
+    paused_seconds = models.PositiveIntegerField(default=0)
+    actual_minutes = models.PositiveIntegerField(default=0)
+    work_summary = models.TextField(blank=True, default="")
+    inspection_results_json = models.JSONField(default=list)
+    attachments_json = models.JSONField(default=list)
+    cycle_reset = models.BooleanField(default=False)
+    client_request_id = models.CharField(max_length=120, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "report_id"]
+
+    def __str__(self):
+        return f"{self.report_id} {self.work_order_id} {self.report_type}"
+
+
+class AbnormalReport(models.Model):
+    abnormal_report_id = models.CharField(
+        primary_key=True,
+        max_length=40,
+        default=new_abnormal_report_id,
+        editable=False,
+    )
+    work_order = models.OneToOneField(
+        WorkOrder,
+        on_delete=models.PROTECT,
+        related_name="abnormal_report",
+    )
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.PROTECT,
+        related_name="abnormal_reports",
+    )
+    abnormal_type = models.CharField(max_length=100)
+    description = models.TextField()
+    inspection_results_json = models.JSONField(default=list)
+    client_request_id = models.CharField(max_length=120, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "abnormal_report_id"]
+
+    def __str__(self):
+        return f"{self.abnormal_report_id} {self.work_order_id}"
+
+
+class MaintenanceHistory(models.Model):
+    class EventType(models.TextChoices):
+        MAINTENANCE_COMPLETED = "MAINTENANCE_COMPLETED", "保养完成"
+
+    history_id = models.CharField(
+        primary_key=True,
+        max_length=40,
+        default=new_history_id,
+        editable=False,
+    )
+    mold = models.ForeignKey(Mold, on_delete=models.PROTECT, related_name="maintenance_history")
+    work_order = models.OneToOneField(
+        WorkOrder,
+        on_delete=models.PROTECT,
+        related_name="maintenance_history_entry",
+    )
+    event_type = models.CharField(max_length=40, choices=EventType.choices)
+    count_snapshot = models.BigIntegerField()
+    occurred_at = models.DateTimeField()
+    cycle_version_before = models.PositiveIntegerField()
+    cycle_version_after = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-occurred_at", "history_id"]
+
+    def __str__(self):
+        return f"{self.history_id} {self.mold_id} {self.event_type}"

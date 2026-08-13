@@ -1,13 +1,17 @@
 from rest_framework import serializers
 
 from .models import (
+    AbnormalReport,
     Employee,
     KnowledgeSnapshot,
     MaintenanceAlert,
+    MaintenanceHistory,
     Mold,
     NotificationReceipt,
+    PauseSegment,
     WorkOrder,
     WorkOrderEvent,
+    WorkReport,
 )
 
 
@@ -166,5 +170,108 @@ class NotificationReceiptSerializer(serializers.ModelSerializer):
             "message_id",
             "error_message",
             "sent_at",
+            "created_at",
+        ]
+
+
+class EmployeeActionSerializer(serializers.Serializer):
+    employee_id = serializers.CharField(max_length=40)
+    occurred_at = serializers.DateTimeField(required=False)
+    client_request_id = serializers.CharField(max_length=120)
+
+
+class PauseActionSerializer(EmployeeActionSerializer):
+    reason = serializers.CharField(required=False, allow_blank=True)
+
+
+class InspectionResultSerializer(serializers.Serializer):
+    knowledge_id = serializers.CharField(max_length=120)
+    item = serializers.CharField(max_length=500)
+    result = serializers.ChoiceField(choices=["PASS", "FAIL", "NOT_APPLICABLE"])
+    note = serializers.CharField(required=False, allow_blank=True)
+    reason = serializers.CharField(required=False, allow_blank=True)
+
+
+class CompleteReportSerializer(serializers.Serializer):
+    employee_id = serializers.CharField(max_length=40)
+    started_at = serializers.DateTimeField(required=False)
+    completed_at = serializers.DateTimeField()
+    work_summary = serializers.CharField()
+    inspection_results = InspectionResultSerializer(many=True, allow_empty=False)
+    attachments = serializers.ListField(child=serializers.JSONField(), required=False, default=list)
+    client_request_id = serializers.CharField(max_length=120)
+
+    def validate_inspection_results(self, items):
+        knowledge_ids = [item["knowledge_id"] for item in items]
+        if len(knowledge_ids) != len(set(knowledge_ids)):
+            raise serializers.ValidationError("点检结果中knowledge_id不能重复")
+        return items
+
+
+class AbnormalReportCreateSerializer(serializers.Serializer):
+    employee_id = serializers.CharField(max_length=40)
+    abnormal_type = serializers.CharField(max_length=100, allow_blank=True)
+    description = serializers.CharField(allow_blank=True)
+    inspection_results = InspectionResultSerializer(many=True, allow_empty=False)
+    started_at = serializers.DateTimeField(required=False)
+    completed_at = serializers.DateTimeField(required=False)
+    client_request_id = serializers.CharField(max_length=120)
+
+
+class PauseSegmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PauseSegment
+        fields = ["pause_id", "paused_at", "resumed_at", "reason", "created_at"]
+
+
+class WorkReportSerializer(serializers.ModelSerializer):
+    inspection_results = serializers.JSONField(source="inspection_results_json")
+    attachments = serializers.JSONField(source="attachments_json")
+    employee_id = serializers.CharField(source="employee.employee_id")
+
+    class Meta:
+        model = WorkReport
+        fields = [
+            "report_id",
+            "employee_id",
+            "report_type",
+            "started_at",
+            "completed_at",
+            "paused_seconds",
+            "actual_minutes",
+            "work_summary",
+            "inspection_results",
+            "attachments",
+            "cycle_reset",
+            "client_request_id",
+            "created_at",
+        ]
+
+
+class AbnormalReportSerializer(serializers.ModelSerializer):
+    inspection_results = serializers.JSONField(source="inspection_results_json")
+
+    class Meta:
+        model = AbnormalReport
+        fields = [
+            "abnormal_report_id",
+            "abnormal_type",
+            "description",
+            "inspection_results",
+            "client_request_id",
+            "created_at",
+        ]
+
+
+class MaintenanceHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MaintenanceHistory
+        fields = [
+            "history_id",
+            "event_type",
+            "count_snapshot",
+            "occurred_at",
+            "cycle_version_before",
+            "cycle_version_after",
             "created_at",
         ]
