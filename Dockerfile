@@ -8,12 +8,21 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc pkg-config default-libmysqlclient-dev \
+    && pip install --no-cache-dir -r requirements.txt \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY . .
 
 RUN python manage.py check
 
+RUN groupadd --system moldguard \
+    && useradd --system --gid moldguard --home-dir /app --shell /usr/sbin/nologin moldguard \
+    && chown -R moldguard:moldguard /app
+
+USER moldguard
+
 EXPOSE 18080
 
-CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_probe_data && gunicorn config.wsgi:application --bind 0.0.0.0:18080 --workers 1 --threads 4"]
+CMD ["sh", "/app/scripts/container_entrypoint.sh"]

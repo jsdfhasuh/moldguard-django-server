@@ -1,0 +1,81 @@
+name: moldguard
+
+services:
+  mariadb:
+    image: mariadb:11.8
+    container_name: moldguard-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${MARIADB_DATABASE:?set MARIADB_DATABASE in .env}
+      MARIADB_USER: ${MARIADB_USER:?set MARIADB_USER in .env}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?set MARIADB_PASSWORD in .env}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?set MARIADB_ROOT_PASSWORD in .env}
+      MARIADB_INITDB_SKIP_TZINFO: "1"
+    volumes:
+      - ./runtime/mariadb:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - backend
+
+  api:
+    build:
+      context: .
+    image: moldguard-platform-probe:${MOLDGUARD_IMAGE_TAG:-local}
+    container_name: moldguard-api
+    restart: unless-stopped
+    environment:
+      DJANGO_DEBUG: "false"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?set DJANGO_SECRET_KEY in .env}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-moldguard.oracle.19970219.xyz,127.0.0.1,localhost}
+      DJANGO_DB_ENGINE: mariadb
+      DJANGO_DB_HOST: mariadb
+      DJANGO_DB_PORT: "3306"
+      DJANGO_DB_NAME: ${MARIADB_DATABASE:?set MARIADB_DATABASE in .env}
+      DJANGO_DB_USER: ${MARIADB_USER:?set MARIADB_USER in .env}
+      DJANGO_DB_PASSWORD: ${MARIADB_PASSWORD:?set MARIADB_PASSWORD in .env}
+      PROBE_EMPLOYEE_1_EMAIL: ${PROBE_EMPLOYEE_1_EMAIL:-maintainer-injection@example.com}
+      PROBE_EMPLOYEE_2_EMAIL: ${PROBE_EMPLOYEE_2_EMAIL:-maintainer-sheet@example.com}
+      PROBE_EMPLOYEE_4_EMAIL: ${PROBE_EMPLOYEE_4_EMAIL:-maintainer-shared@example.com}
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:18080:18080"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18080/api/v1/health', timeout=5).read()"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge

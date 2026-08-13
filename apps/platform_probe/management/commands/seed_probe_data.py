@@ -15,8 +15,19 @@ from apps.platform_probe.models import Employee, Mold
 class Command(BaseCommand):
     help = "Create or restore deterministic MoldGuard platform-probe demo data."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--if-empty",
+            action="store_true",
+            help="Only seed when both the mold and employee tables are empty.",
+        )
+
     @transaction.atomic
     def handle(self, *args, **options):
+        if options["if_empty"] and (Mold.objects.exists() or Employee.objects.exists()):
+            self.stdout.write("Probe data already exists; initial seed skipped.")
+            return
+
         data_path = Path(settings.BASE_DIR) / "data" / "probe_data.json"
         payload = json.loads(data_path.read_text(encoding="utf-8"))
         now = timezone.now()

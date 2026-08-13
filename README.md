@@ -17,6 +17,8 @@ MoldGuard 是一个供比赛智能体平台直接调用的开放 Django 测试�
 
 基线为 Python 3.12、Django 5.2、DRF 3.16、SQLite、Asia/Shanghai，默认端口 `18080`。
 
+本地开发默认使用 SQLite；Oracle 主机的 Docker 部署使用独立 MariaDB 容器和宿主持久化目录，详见 [Oracle + MariaDB 部署说明](docs/deployment-oracle-mariadb.md)。
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate

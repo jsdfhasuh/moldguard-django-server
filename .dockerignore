@@ -9,3 +9,4 @@ htmlcov
 db.sqlite3
 .env
 docs/reports
+runtime

@@ -17,6 +17,17 @@ def test_seed_and_verify_management_commands(seeded_molds):
 
 
 @pytest.mark.django_db
+def test_seed_if_empty_does_not_overwrite_existing_demo_data(seeded_molds):
+    mold = Mold.objects.get(pk="MOLD-TEST-001")
+    mold.mold_name = "保留现有部署数据"
+    mold.save(update_fields=["mold_name", "updated_at"])
+
+    call_command("seed_probe_data", if_empty=True, verbosity=0)
+
+    assert Mold.objects.get(pk="MOLD-TEST-001").mold_name == "保留现有部署数据"
+
+
+@pytest.mark.django_db
 def test_mold_list_detail_and_status(seeded_molds, api_client):
     listing = api_client.get("/api/v1/molds")
     detail = api_client.get("/api/v1/molds/MOLD-TEST-001")
