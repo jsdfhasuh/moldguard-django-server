@@ -31,7 +31,7 @@ MoldGuard Django Server
 
 状态：`INTERNAL_CONFIRMED`
 
-当前实际业务对钣金和注塑模具**不区分一级、二级、三级保养**。自动保养提醒统一按照模具开发吨位执行：
+当前实际业务对钣金和注塑模具不区分一级、二级、三级保养。自动保养提醒统一按照模具开发吨位执行：
 
 | 开发吨位 | 自动提醒周期 |
 |---:|---:|
@@ -62,9 +62,7 @@ cycle_baseline_time + 2 calendar months
 → 不自动派工
 ```
 
-该时间提醒不能覆盖或替代3万/5万吨位模次触发规则。
-
-本次确认未扩大到钣金模具；后续如需启用，必须另行确认。
+本次确认未扩大到钣金模具。
 
 ## 已确认的周期复位规则
 
@@ -79,19 +77,39 @@ cycle_baseline_time + 2 calendar months
 有效历史记录导入
 ```
 
-复位同时更新：
+复位后重新计算下一次30,000/50,000模次触发点，以及注塑模具下一次2个月提醒。
+
+## 当前状态
 
 ```text
-cycle_baseline_count
-cycle_baseline_time
-cycle_version
-last_reset_type
-last_reset_event_id
+完整技术计划：V3.1 TECHNICAL_BASELINE
+触发规则修订：V3.2 NORMATIVE_AMENDMENT
+提醒与复位修订：V3.3 NORMATIVE_AMENDMENT
+已确认规则：
+  MAINT_TRIGGER_TONNAGE_V1 / INTERNAL_CONFIRMED
+  TWO_MONTH_REMINDER_V1 / INTERNAL_CONFIRMED
+  MAINTENANCE_CYCLE_RESET_V1 / INTERNAL_CONFIRMED
+负责人决策：OWNER_DECISIONS_REQUIRED
+系统状态：NOT_IMPLEMENTED
+下一步：确认D01、D07、D09—D18 + Gate -1平台验证
+建议实施分支：agent/django-full-workflow-v1
 ```
 
-下一次3万/5万模次触发和注塑每2个月提醒均从新基线重新计算。
+## 决策进度入口
 
-历史记录导入使用记录中的实际业务发生模次和时间，不使用上传时间；旧于当前基线的记录默认只归档，不自动倒退周期。
+负责人决策统一在下面这个固定路径持续更新：
+
+- [负责人决策清单（当前实时版本）](docs/decisions/2026-08-12-owner-decision-checklist.md)
+
+当前进度：
+
+```text
+已确认：D02、D03、D04、D05、D06、D08
+部分确认：D01
+待确认：D07、D09—D18
+```
+
+`V1.1`、`V1.2` 文件仅作为历史快照，不再作为当前入口。
 
 ## 权威确认记录
 
@@ -102,8 +120,6 @@ last_reset_event_id
 
 ## 知识库基线
 
-当前对齐：
-
 ```text
 MoldGuard_模具保养知识库_上传包V0.1.zip
 知识条目：353条
@@ -111,9 +127,7 @@ MoldGuard_模具保养知识库_上传包V0.1.zip
 故障与标准工时：78条
 ```
 
-知识包V0.1原有条目仍保留原始权威标签。当前正式吨位规则、时间提醒和周期复位规则通过独立业务确认记录建立，不静默修改历史知识来源。
-
-知识库中的冲突阈值和保养等级资料可以用于检索、解释、点检和作业指导，但不得覆盖Django返回的当前规则。
+知识库中的冲突阈值和保养等级资料可以用于检索、解释、点检和作业指导，但不得覆盖Django返回的当前正式规则。
 
 ## 系统分工
 
@@ -132,7 +146,7 @@ MoldGuard_模具保养知识库_上传包V0.1.zip
 ### Django负责
 
 - 模具数据、模次、开发吨位、位置、寿命和闲置状态；
-- 当前正式吨位规则及其他规则的版本、来源、审批、冲突和适用范围；
+- 当前正式吨位规则及其他规则的版本、来源、审批和适用范围；
 - 吨位模次触发、注塑2个月提醒、寿命提醒和闲置提醒分离；
 - `MaintenanceCycle`、周期版本和四类复位事件；
 - 自动/手动保养计划；
@@ -155,54 +169,17 @@ MoldGuard_模具保养知识库_上传包V0.1.zip
 - 将2个月提醒自动升级成计划或派工；
 - 对真实MES、ERP或排产系统执行生产写入。
 
-## 当前状态
+## 其他权威文档
 
-```text
-完整技术计划：V3.1 TECHNICAL_BASELINE
-触发规则修订：V3.2 NORMATIVE_AMENDMENT
-提醒与复位修订：V3.3 NORMATIVE_AMENDMENT
-已确认规则：
-  MAINT_TRIGGER_TONNAGE_V1 / INTERNAL_CONFIRMED
-  TWO_MONTH_REMINDER_V1 / INTERNAL_CONFIRMED
-  MAINTENANCE_CYCLE_RESET_V1 / INTERNAL_CONFIRMED
-剩余负责人决策：OWNER_DECISIONS_REQUIRED
-知识库基线：MoldGuard KB V0.1
-系统状态：NOT_IMPLEMENTED
-下一步：确认D07、D09—D18 + Gate -1平台验证
-建议实施分支：agent/django-full-workflow-v1
-```
-
-以下内容已可进入Phase 0合同、模型和测试设计：
-
-```text
-development_tonnage字段
-3万/5万吨位触发
-当前不区分保养等级
-注塑每2个月仅提醒
-MaintenanceCycle
-CycleResetEvent
-保养/修模/换镶件/历史导入复位
-新旧周期和提醒失效规则
-```
-
-其余未确认业务不得由开发人员或LLM自行补齐。
-
-## 权威文档
-
-- [负责人决策清单V1.2](docs/decisions/2026-08-13-owner-decision-checklist-v1.2.md)
-- [自动保养触发规则确认记录](docs/decisions/2026-08-13-maintenance-trigger-rule-confirmation.md)
-- [每2个月提醒与周期复位确认记录](docs/decisions/2026-08-13-time-reminder-cycle-reset-confirmation.md)
-- [V3.2触发规则修订](docs/plans/2026-08-13-moldguard-django-v3.2-trigger-rule-amendment.md)
-- [V3.3提醒与周期复位修订](docs/plans/2026-08-13-moldguard-django-v3.3-reminder-reset-amendment.md)
 - [完整实施计划V3.1](docs/plans/2026-08-12-moldguard-django-implementation-plan.md)
 - [智能体平台与Django关系说明V1.1](docs/architecture/2026-08-12-agent-platform-django-relationship.md)
 - [知识库与Django对齐说明](docs/knowledge/2026-08-12-moldguard-kb-django-alignment.md)
 - [智能体业务场景说明](docs/business/2026-08-12-moldguard-business-scenarios.md)
 
-历史文档：
+历史快照：
 
 - [负责人决策清单V1.1](docs/decisions/2026-08-13-owner-decision-checklist-v1.1.md)
-- [负责人决策清单V1.0](docs/decisions/2026-08-12-owner-decision-checklist.md)
+- [负责人决策清单V1.2](docs/decisions/2026-08-13-owner-decision-checklist-v1.2.md)
 - [已废止的只读查询API方案](docs/plans/2026-08-12-moldguard-django-query-api-only-plan.md)
 
 ## 技术基线
