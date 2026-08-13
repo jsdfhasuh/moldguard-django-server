@@ -20,6 +20,8 @@ class Command(BaseCommand):
             raise CommandError("reset_demo_data requires --confirm")
         MaintenanceRecord.objects.all().delete()
         WorkOrderEvent.objects.all().delete()
+        WorkOrder.objects.exclude(linked_repair_order=None).update(linked_repair_order=None)
+        WorkOrder.objects.exclude(parent_work_order=None).delete()
         WorkOrder.objects.all().delete()
         Alert.objects.all().delete()
         Employee.objects.all().delete()

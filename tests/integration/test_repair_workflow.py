@@ -1,6 +1,8 @@
 import pytest
+from django.core.management import call_command
 
 from apps.molds.models import Alert, Mold
+from apps.staff.models import Employee
 from apps.workorders.models import MaintenanceRecord, WorkOrder, WorkOrderEvent
 from tests.api.test_repair_workflow import create_and_complete_repair
 from tests.helpers import assigned_with_knowledge, normal_report_payload
@@ -54,3 +56,35 @@ def test_end_to_end_repair_workflow_resets_only_on_parent_final_normal(
     assert parent_events.count("REPAIR_TASK_LINKED") == 1
     assert parent_events.count("REPAIR_COMPLETED") == 1
     assert parent_events.count("NORMAL_REPORT_COMPLETED") == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_reset_demo_data_handles_completed_parent_and_repair_child(api_client, knowledge_payload):
+    call_command("seed_demo_data", verbosity=0)
+    parent_id, _, parent_hash = assigned_with_knowledge(
+        api_client,
+        knowledge_payload,
+        mold_id="DEMO-INJ-050K",
+        employee_id="DEMO-EMP-INJ",
+        suffix="repair-reset",
+    )
+    create_and_complete_repair(
+        api_client,
+        knowledge_payload,
+        parent_id,
+        parent_hash,
+        suffix="repair-reset",
+    )
+    api_client.post(
+        f"/api/v1/work-orders/{parent_id}/report",
+        normal_report_payload("repair-reset-parent", parent_hash),
+        format="json",
+    )
+    assert WorkOrder.objects.filter(parent_work_order_id=parent_id).exists()
+
+    call_command("reset_demo_data", "--confirm", verbosity=0)
+
+    assert WorkOrder.objects.count() == 0
+    assert MaintenanceRecord.objects.count() == 0
+    assert Mold.objects.count() == 10
+    assert Employee.objects.count() == 4
