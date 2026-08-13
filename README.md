@@ -131,23 +131,26 @@ python manage.py runserver 0.0.0.0:18080
 
 ```text
 权威计划：V4.0 FINAL_FROZEN_FOR_TEST_SERVER
+模型字段：OWNER_FIELD_REVIEW_REQUIRED
 系统状态：NOT_IMPLEMENTED
 建议实施分支：agent/django-test-server-v1
 数据性质：DEMO ONLY
 ```
 
-## 权威文档
+## 当前权威文档
 
+- [文档状态索引](docs/README.md)
 - [Django测试服务器实施计划V4.0](docs/plans/2026-08-12-moldguard-django-implementation-plan.md)
+- [Django模型字段审查表V1.0](docs/models/2026-08-13-django-model-field-review.md)
 - [智能体平台与Django测试服务器关系说明V2.0](docs/architecture/2026-08-12-agent-platform-django-relationship.md)
 - [简化业务场景说明V2.0](docs/business/2026-08-12-moldguard-business-scenarios.md)
+- [知识库与Django测试服务器对齐说明V2.0](docs/knowledge/2026-08-12-moldguard-kb-django-alignment.md)
 - [负责人决策清单（持续更新）](docs/decisions/2026-08-12-owner-decision-checklist.md)
 - [测试服务器简化确认](docs/decisions/2026-08-13-test-server-simplification-confirmation.md)
-- [自动保养触发规则确认](docs/decisions/2026-08-13-maintenance-trigger-rule-confirmation.md)
-- [每2个月提醒与周期复位确认](docs/decisions/2026-08-13-time-reminder-cycle-reset-confirmation.md)
-- [知识库与Django对齐说明](docs/knowledge/2026-08-12-moldguard-kb-django-alignment.md)
+- [自动保养触发规则确认V1.1](docs/decisions/2026-08-13-maintenance-trigger-rule-confirmation.md)
+- [每2个月提醒与周期复位确认V1.1](docs/decisions/2026-08-13-time-reminder-cycle-reset-confirmation.md)
 
-早期V3.x复杂业务计划和历史决策快照只用于追溯，发生冲突时以V4.0为准。
+早期V3.x复杂业务计划和历史决策快照只用于追溯，发生冲突时以V4.0和文档状态索引为准。
 
 ## 参赛主流程
 
