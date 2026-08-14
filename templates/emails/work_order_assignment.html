@@ -43,16 +43,23 @@
         <thead>
           <tr>
             <th style="border:1px solid #d1d5db;padding:8px;text-align:left;">点检项目</th>
-            <th style="border:1px solid #d1d5db;padding:8px;text-align:left;">判定标准</th>
-            <th style="border:1px solid #d1d5db;padding:8px;text-align:left;">点检方法</th>
+            <th style="border:1px solid #d1d5db;padding:8px;text-align:left;">知识内容</th>
+            <th style="border:1px solid #d1d5db;padding:8px;text-align:left;">类型与方法</th>
           </tr>
         </thead>
         <tbody>
           {% for item in knowledge_items %}
           <tr>
-            <td style="border:1px solid #d1d5db;padding:8px;">{{ item.knowledge_id }}｜{{ item.item }}</td>
-            <td style="border:1px solid #d1d5db;padding:8px;">{{ item.criteria }}</td>
-            <td style="border:1px solid #d1d5db;padding:8px;">{{ item.method }}</td>
+            <td style="border:1px solid #d1d5db;padding:8px;">
+              {{ item.knowledge_id }}｜{{ item.item }}
+              {% if item.title %}<br><small>{{ item.title }}</small>{% endif %}
+            </td>
+            <td style="border:1px solid #d1d5db;padding:8px;">{% if item.content %}{{ item.content }}{% else %}{{ item.criteria }}{% endif %}</td>
+            <td style="border:1px solid #d1d5db;padding:8px;">
+              {% if item.knowledge_type %}{{ item.knowledge_type }}{% endif %}
+              {% if item.method %}<br>{{ item.method }}{% endif %}
+              {% if item.source %}<br><small>来源：{{ item.source }}</small>{% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -68,6 +75,7 @@
       <p style="margin:28px 0;text-align:center;">
         <a href="{{ report_url }}" style="display:inline-block;padding:12px 24px;background:#176b55;color:#ffffff;text-decoration:none;border-radius:8px;">{{ report_button_text }}</a>
       </p>
+      <p>请在页面提交作业说明、实际工时和现场照片。平台将结合本工单知识包审核材料，最终结果以 Django 裁决为准。</p>
       <p style="overflow-wrap:anywhere;">报工链接：<a href="{{ report_url }}">{{ report_url }}</a></p>
     </div>
   </div>

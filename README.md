@@ -11,7 +11,7 @@
 邮件发送决议：Django SMTP
 一天后端优先计划：V1.0
 模型字段：V3.1
-报工表单：REPORT-FORM-1.1
+员工报工：REPORT-REVIEW-2.1（页面壳仍使用 REPORT-FORM-1.1）
 目标实施分支：agent/competition-server-v1
 本地测试数据库：SQLite
 比赛部署数据库：MariaDB
@@ -55,7 +55,7 @@ DEMO数据命令
 扫描自动建单和合并触发
 候选人员与指定派工
 知识包、Django SMTP派工邮件和report_url
-JSON正常/异常报工
+员工图片报工、Webhook AI审核与Django最终裁决
 履历、周期复位、幂等和核心测试
 Docker/MariaDB可启动
 ```
@@ -77,7 +77,7 @@ docs/             完整计划、V5.1决议、一天执行计划、模型和契�
 knowledge-base/   解压后的最终知识文档、发布清单和校验信息
 ```
 
-`agent/competition-server-v1` 已完成 P0、P1/P2 比赛范围。实现包括 Django SMTP 双格式派工邮件、HTML 邮件链接报工、执行状态机、异常继续处理、
+`agent/competition-server-v1` 已完成 P0、P1/P2 比赛范围。实现包括 Django SMTP 双格式派工邮件、HTML 邮件链接图片报工、AI 审核回写与 Django 最终裁决、执行状态机、异常继续处理、
 关联修模、tracking、基础统计、自动派工和蓝绿部署脚本。SQLite 全量测试、独立
 MariaDB测试和 Nginx 回退已验证；新 SMTP 版本只有在配置真实 SMTP 与收件邮箱、
 完成实际投递验证并显式设置 `MOLDGUARD_SMTP_DELIVERY_VERIFIED=true` 后，才会报告
@@ -104,12 +104,14 @@ MariaDB 宿主映射由 `MARIADB_HOST_BIND` 和 `MARIADB_HOST_PORT` 控制。示
 
 ```text
 触发扫描并自动建单
-→ 查询候选人员并派工
-→ 平台检索点检知识
-→ 平台回写知识包并调用Django send-email
+→ Django按确定性规则自动派工
+→ Django返回检索上下文，平台检索并组装点检知识包
+→ 平台POST知识包到Django并调用send-email
 → Django通过SMTP发送含点检知识和report_url的邮件
-→ 人员点击Django链接直接报工
-→ 正常完成并复位 / 异常继续处理或关联修模
+→ 人员点击Django链接上传文字和现场图片
+→ Django保存材料并Webhook唤醒平台
+→ 平台拉取材料与锁定知识包并回写AI建议
+→ Django完成并复位 / 异常继续处理或关联修模 / 要求补充材料
 → 查询工时、完成率和模具履历
 ```
 
@@ -128,8 +130,14 @@ MariaDB 宿主映射由 `MARIADB_HOST_BIND` 和 `MARIADB_HOST_PORT` 控制。示
 - 同一周期模次和时间同时命中时只创建一张正式工单；
 - 正常报工允许从 `ASSIGNED` 直接完成；
 - 页面不输入员工编号，服务器使用工单 `assignee`；
+- 员工只从 Django 页面上传文字和图片，不提供平台页面报工入口；
+- Django 保存报工材料并通过 Webhook 唤醒平台；平台只拉取上下文和回写建议；
+- AI 不直接修改工单；Django 校验置信度、知识哈希和点检结果后最终裁决；
+- 当前平台视觉输入未验证时只允许回写 `NEEDS_MORE_INFO`；
 - `current_load` 使用固定 DEMO 值，不自动增减；
 - 未配置标准工时时返回 null，不猜测；
+- `GET /api/v1/work-orders/{id}/knowledge-context` 只提供平台检索条件；Django不访问平台知识库；
+- `POST /api/v1/work-orders/{id}/knowledge` 接收并保存平台检索后提交的知识包；
 - `POST /api/v1/work-orders/{id}/send-email` 只接受 `client_request_id`；
 - 收件人固定为工单 `assignee.email`，邮件由Django渲染并通过SMTP发送；
 - `GET /email-context` 仅用于预览，公开 API 不提供 `POST /email-result`；
@@ -147,4 +155,5 @@ MariaDB 宿主映射由 `MARIADB_HOST_BIND` 和 `MARIADB_HOST_PORT` 控制。示
 - [比赛服务器完整实施计划V5.0](docs/plans/2026-08-12-moldguard-django-implementation-plan.md)
 - [模型字段V3.1](docs/models/2026-08-13-django-model-field-review.md)
 - [报工契约REPORT-FORM-1.1](docs/contracts/2026-08-13-mail-report-link-contract.md)
+- [AI审核报工契约REPORT-REVIEW-2.1](docs/contracts/2026-08-14-ai-reviewed-report-contract.md)
 - [知识库MOLDGUARD-KB-1.2](knowledge-base/releases/MOLDGUARD-KB-1.2/README.md)

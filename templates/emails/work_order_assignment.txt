@@ -26,8 +26,12 @@
 标题：{{ knowledge_package.title }}
 {% for item in knowledge_items %}
 {{ forloop.counter }}. {{ item.knowledge_id }}｜{{ item.item }}
-   判定标准：{{ item.criteria }}
-   点检方法：{{ item.method }}
+{% if item.title %}   知识标题：{{ item.title }}
+{% endif %}   知识内容：{% if item.content %}{{ item.content }}{% else %}{{ item.criteria }}{% endif %}
+{% if item.method %}   点检方法：{{ item.method }}
+{% endif %}{% if item.knowledge_type %}   知识类型：{{ item.knowledge_type }}
+{% endif %}{% if item.source %}   来源：{{ item.source }}
+{% endif %}
 {% endfor %}
 
 安全注意事项
@@ -38,8 +42,9 @@
 知识版本：{{ knowledge_snapshot_version }}
 知识包哈希：{{ knowledge_package_hash }}
 
-请打开以下链接逐项点检并提交报工：
+请打开以下链接提交作业说明、实际工时和现场照片：
 {{ report_url }}
 
 {{ report_button_text }}
+提交后平台将结合本工单知识包审核材料，最终结果以 Django 裁决为准。
 {% endautoescape %}

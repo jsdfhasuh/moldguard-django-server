@@ -7,6 +7,9 @@ from apps.workorders.views import (
     KnowledgeContextView,
     KnowledgeView,
     RepairCompletedView,
+    ReportEvidenceView,
+    ReportReviewContextView,
+    ReportReviewView,
     SendEmailView,
     TrackingScanView,
     WorkOrderAssignView,
@@ -90,6 +93,21 @@ urlpatterns = [
         "work-orders/<str:work_order_id>/report",
         WorkOrderReportView.as_view(),
         name="work-order-report",
+    ),
+    path(
+        "report-submissions/<str:submission_id>/review-context",
+        ReportReviewContextView.as_view(),
+        name="report-review-context",
+    ),
+    path(
+        "report-submissions/<str:submission_id>/evidence/<str:evidence_id>",
+        ReportEvidenceView.as_view(),
+        name="report-evidence",
+    ),
+    path(
+        "report-submissions/<str:submission_id>/review",
+        ReportReviewView.as_view(),
+        name="report-review",
     ),
     path(
         "work-orders/<str:work_order_id>/continue-processing",

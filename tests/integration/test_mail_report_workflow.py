@@ -1,9 +1,10 @@
 import pytest
 from django.test import Client
 
-from apps.workorders.models import WorkOrder
+from apps.workorders.models import ReportSubmission, WorkOrder
 from tests.helpers import (
     assign_work_order,
+    complete_review_payload,
     save_knowledge,
     scan_work_order,
     send_assignment_email,
@@ -13,9 +14,10 @@ from tests.web.test_report_page import html_normal_payload
 
 @pytest.mark.django_db
 def test_public_mail_link_html_report_and_whitenoise_contract(
-    api_client, seeded_demo, knowledge_payload, settings
+    api_client, seeded_demo, knowledge_payload, settings, tmp_path
 ):
     settings.MOLDGUARD_PUBLIC_BASE_URL = "https://public.moldguard.example"
+    settings.MEDIA_ROOT = tmp_path
     work_order_id, _ = scan_work_order(api_client, "DEMO-INJ-050K", "mail-report-integration")
     assignment = assign_work_order(
         api_client, work_order_id, "DEMO-EMP-INJ", "mail-report-integration"
@@ -50,7 +52,15 @@ def test_public_mail_link_html_report_and_whitenoise_contract(
     payload = html_normal_payload(work_order, submission_id="mail-report-html-submit")
     payload["csrfmiddlewaretoken"] = csrf_token
     result = browser.post(f"/report/{work_order_id}", payload)
-    assert result.status_code == 200
+    assert result.status_code == 202
+    assert WorkOrder.objects.get(pk=work_order_id).status == WorkOrder.Status.ASSIGNED
+    submission = ReportSubmission.objects.get(work_order_id=work_order_id)
+    reviewed = api_client.post(
+        f"/api/v1/report-submissions/{submission.submission_id}/review",
+        complete_review_payload("mail-report-html", knowledge["knowledge_package_hash"]),
+        format="json",
+    )
+    assert reviewed.status_code == 200
     assert WorkOrder.objects.get(pk=work_order_id).status == WorkOrder.Status.COMPLETED
 
     assert settings.MIDDLEWARE[0] == "django.middleware.security.SecurityMiddleware"

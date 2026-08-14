@@ -1,3 +1,6 @@
+from django.core.files.uploadedfile import SimpleUploadedFile
+
+
 def scan_work_order(api_client, mold_id, suffix):
     response = api_client.post(
         "/api/v1/alerts/scan",
@@ -94,3 +97,28 @@ def abnormal_report_payload(suffix, knowledge_hash, *, next_action="CONTINUE_PRO
     )
     payload["inspection_results"][1].update({"result": "FAIL", "abnormal_note": "水路不通"})
     return payload
+
+
+def report_image(name="report-evidence.png"):
+    return SimpleUploadedFile(
+        name,
+        b"\x89PNG\r\n\x1a\n" + b"moldguard-report-evidence",
+        content_type="image/png",
+    )
+
+
+def complete_review_payload(suffix, knowledge_hash, *, confidence="0.9500"):
+    normal = normal_report_payload(suffix, knowledge_hash)
+    return {
+        "client_request_id": f"review-{suffix}",
+        "decision": "COMPLETE",
+        "assessment_summary": "图片与文字能够证明必检项目已完成",
+        "confidence": confidence,
+        "knowledge_package_hash": knowledge_hash,
+        "inspection_results": normal["inspection_results"],
+        "abnormal_items": [],
+        "abnormal_next_action": None,
+        "reason_codes": ["ALL_REQUIRED_ITEMS_CONFIRMED"],
+        "knowledge_sources": ["MOLDGUARD-KB-1.2"],
+        "review_model": "competition-agent",
+    }

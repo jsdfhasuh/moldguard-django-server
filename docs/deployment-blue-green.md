@@ -38,6 +38,12 @@ MOLDGUARD_SMTP_DELIVERY_VERIFIED=false
 DEMO_EMPLOYEE_1_EMAIL ... DEMO_EMPLOYEE_4_EMAIL
 MARIADB_HOST_BIND=127.0.0.1
 MARIADB_HOST_PORT=13306
+MOLDGUARD_REPORT_REVIEW_WEBHOOK_URL
+MOLDGUARD_REPORT_REVIEW_WEBHOOK_TIMEOUT=10
+MOLDGUARD_REPORT_MAX_IMAGES=10
+MOLDGUARD_REPORT_IMAGE_MAX_BYTES=8388608
+DJANGO_DATA_UPLOAD_MAX_MEMORY_SIZE=100663296
+MOLDGUARD_AI_REVIEW_MIN_CONFIDENCE=0.7500
 ```
 
 Compose 固定设置 `MOLDGUARD_REQUIRE_SMTP=true`，会拒绝 locmem/console、示例SMTP主机、
@@ -68,6 +74,14 @@ MariaDB 宿主映射由 `MARIADB_HOST_BIND` 和 `MARIADB_HOST_PORT` 控制，示
 `127.0.0.1:13306`。如测试环境明确需要公网访问，可显式设置为 `0.0.0.0:3306`，并在
 主机防火墙和 Oracle Cloud 入站规则中同步放行 TCP 3306。公网 root 登录不应用于真实
 生产数据。
+
+员工报工图片固定持久化到 `runtime/competition/media` 并挂载为容器内 `/app/media`。
+该目录必须可由容器用户 `10001:10001` 写入，不能放进容器只读层。Nginx 的
+`client_max_body_size` 必须覆盖 10 张图片的总请求体；仓库模板使用 `96m`。
+
+部署前还要把流程 `MoldGuard_02_Django报工AI审核` 的真实 Webhook endpoint 写入
+`MOLDGUARD_REPORT_REVIEW_WEBHOOK_URL`。当前平台未验证视觉输入时，流程只允许回写
+`NEEDS_MORE_INFO`，不得把安全门禁结果描述为已完成 AI 图片审核。
 
 ## 3. 切换前备份
 

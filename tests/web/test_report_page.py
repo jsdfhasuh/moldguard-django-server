@@ -2,8 +2,8 @@ import pytest
 from django.test import Client
 
 from apps.common.models import ClientRequestRecord
-from apps.workorders.models import MaintenanceRecord, WorkOrder, WorkOrderEvent
-from tests.helpers import assigned_with_knowledge
+from apps.workorders.models import MaintenanceRecord, ReportSubmission, WorkOrder, WorkOrderEvent
+from tests.helpers import assigned_with_knowledge, report_image
 
 
 def html_normal_payload(work_order, *, submission_id="html-report-001"):
@@ -11,20 +11,10 @@ def html_normal_payload(work_order, *, submission_id="html-report-001"):
         "submission_id": submission_id,
         "report_form_schema_version": "REPORT-FORM-1.1",
         "knowledge_package_hash": work_order.knowledge_package_hash,
-        "report_type": "NORMAL",
-        "report_summary": "网页报工已完成保养并逐项检查",
-        "inspection_0_result": "PASS",
-        "inspection_0_not_applicable_reason": "",
-        "inspection_0_abnormal_note": "",
-        "inspection_1_result": "PASS",
-        "inspection_1_not_applicable_reason": "",
-        "inspection_1_abnormal_note": "",
-        "abnormal_items_text": "",
-        "photos_text": "https://example.com/demo-photo-reference",
+        "report_text": "网页报工已完成保养并上传现场图片",
+        "images": report_image(),
         "parts_replaced_text": "",
-        "source_fault_id": "",
         "actual_work_hours": "2.25",
-        "abnormal_next_action": "",
     }
 
 
@@ -51,13 +41,17 @@ def test_report_page_shows_same_hash_and_no_employee_input(
     assert "MOLDGUARD-KB-1.2" in content
     assert 'name="employee_id"' not in content
     assert 'name="submission_id"' in content
+    assert 'name="images"' in content
+    assert 'name="source_fault_id"' not in content
+    assert "故障源表 ID" not in content
     assert 'name="csrfmiddlewaretoken"' in content
 
 
 @pytest.mark.django_db
-def test_html_submission_uses_shared_report_service_and_replays_submission_id(
-    api_client, seeded_demo, knowledge_payload
+def test_html_submission_waits_for_ai_review_and_replays_submission_id(
+    api_client, seeded_demo, knowledge_payload, settings, tmp_path
 ):
+    settings.MEDIA_ROOT = tmp_path
     work_order_id, _, _ = assigned_with_knowledge(
         api_client,
         knowledge_payload,
@@ -69,32 +63,36 @@ def test_html_submission_uses_shared_report_service_and_replays_submission_id(
     client = Client(enforce_csrf_checks=True)
     page = client.get(f"/report/{work_order_id}")
     csrf_token = page.cookies["csrftoken"].value
-    payload = html_normal_payload(work_order, submission_id="web-submission-replay")
-    payload["csrfmiddlewaretoken"] = csrf_token
+    first_payload = html_normal_payload(work_order, submission_id="web-submission-replay")
+    first_payload["csrfmiddlewaretoken"] = csrf_token
+    second_payload = html_normal_payload(work_order, submission_id="web-submission-replay")
+    second_payload["csrfmiddlewaretoken"] = csrf_token
 
-    first = client.post(f"/report/{work_order_id}", payload)
-    second = client.post(f"/report/{work_order_id}", payload)
-    assert first.status_code == second.status_code == 200
-    assert "报工已完成" in first.content.decode()
+    first = client.post(f"/report/{work_order_id}", first_payload)
+    second = client.post(f"/report/{work_order_id}", second_payload)
+    assert first.status_code == second.status_code == 202
+    assert "报工等待 AI 审核" in first.content.decode()
     order = WorkOrder.objects.get(pk=work_order_id)
-    assert order.status == WorkOrder.Status.COMPLETED
-    assert order.report_summary == "网页报工已完成保养并逐项检查"
-    assert str(order.actual_work_hours) == "2.25"
-    assert MaintenanceRecord.objects.filter(work_order_id=work_order_id).count() == 1
+    assert order.status == WorkOrder.Status.ASSIGNED
+    assert ReportSubmission.objects.filter(work_order_id=work_order_id).count() == 1
+    submission = ReportSubmission.objects.get(work_order_id=work_order_id)
+    assert submission.status == ReportSubmission.Status.PENDING_REVIEW
+    assert submission.evidence.count() == 1
+    assert not MaintenanceRecord.objects.filter(work_order_id=work_order_id).exists()
     assert (
         WorkOrderEvent.objects.filter(
-            work_order_id=work_order_id, event_type="NORMAL_REPORT_COMPLETED"
+            work_order_id=work_order_id, event_type="REPORT_SUBMISSION_CREATED"
         ).count()
         == 1
     )
     request_record = ClientRequestRecord.objects.get(pk="web-submission-replay")
-    assert request_record.action == "SUBMIT_WORK_ORDER_REPORT"
+    assert request_record.action == "CREATE_REPORT_SUBMISSION"
     assert request_record.object_id == work_order_id
 
     read_only = client.get(f"/report/{work_order_id}")
     read_only_content = read_only.content.decode()
-    assert read_only.status_code == 200
-    assert "只读状态" in read_only_content
+    assert read_only.status_code == 202
+    assert "报工等待 AI 审核" in read_only_content
     assert '<form method="post"' not in read_only_content
 
 

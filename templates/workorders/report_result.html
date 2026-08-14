@@ -4,6 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
   <title>MoldGuard 报工结果</title>
   <link rel="stylesheet" href="{% static 'report.css' %}">
 </head>
@@ -11,7 +12,7 @@
 <main class="page-shell narrow">
   <header class="hero">
     <p class="eyebrow">MOLDGUARD · REPORT-FORM-1.1</p>
-    <h1>{% if not_found %}工单不存在{% elif work_order.status == "COMPLETED" %}报工已完成{% elif work_order.status == "ABNORMAL_REPORTED" %}异常已记录{% elif work_order.status == "REPAIR_LINKED" %}已关联修模任务{% else %}报工结果{% endif %}</h1>
+    <h1>{% if not_found %}工单不存在{% elif submission and submission.status == "PENDING_REVIEW" %}报工等待 AI 审核{% elif work_order.status == "COMPLETED" %}报工已完成{% elif work_order.status == "ABNORMAL_REPORTED" %}异常已记录{% elif work_order.status == "REPAIR_LINKED" %}已关联修模任务{% else %}报工结果{% endif %}</h1>
   </header>
   {% if page_error %}<div class="notice error" role="alert">{{ page_error }}</div>{% endif %}
   {% if work_order %}
@@ -21,14 +22,22 @@
       <div><dt>当前状态</dt><dd>{{ work_order.get_status_display }}</dd></div>
       <div><dt>模具</dt><dd>{{ work_order.mold.mold_id }} · {{ work_order.mold.mold_name }}</dd></div>
       <div><dt>被派工人员</dt><dd>{{ work_order.assignee.employee_name|default:"—" }}</dd></div>
+      {% if submission %}
+      <div><dt>提交编号</dt><dd>{{ submission.submission_id }}</dd></div>
+      <div><dt>审核状态</dt><dd>{{ submission.get_status_display }}</dd></div>
+      <div><dt>平台唤醒状态</dt><dd>{{ submission.get_webhook_status_display }}</dd></div>
+      <div><dt>实际工时</dt><dd>{{ submission.actual_work_hours }}</dd></div>
+      <div class="wide"><dt>员工说明</dt><dd>{{ submission.report_text }}</dd></div>
+      {% else %}
       <div><dt>报工类型</dt><dd>{{ work_order.report_type|default:"—" }}</dd></div>
       <div><dt>实际工时</dt><dd>{{ work_order.actual_work_hours|default:"—" }}</dd></div>
       <div class="wide"><dt>处理说明</dt><dd>{{ work_order.report_summary|default:"—" }}</dd></div>
+      {% endif %}
       <div class="wide"><dt>知识包哈希</dt><dd class="hash">{{ work_order.knowledge_package_hash }}</dd></div>
       {% if work_order.abnormal_next_action %}<div><dt>异常下一步</dt><dd>{{ work_order.get_abnormal_next_action_display }}</dd></div>{% endif %}
       {% if work_order.linked_repair_order_id %}<div><dt>关联修模工单</dt><dd>{{ work_order.linked_repair_order_id }}</dd></div>{% endif %}
     </dl>
-    <p class="readonly-note">此页面当前为只读状态，不允许重复提交。</p>
+    <p class="readonly-note">{% if submission and submission.status == "PENDING_REVIEW" %}平台将读取本次材料并结合知识库审核，最终工单状态以 Django 裁决结果为准。{% else %}此页面当前为只读状态，不允许重复提交。{% endif %}</p>
   </section>
   {% endif %}
 </main>

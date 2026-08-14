@@ -5,9 +5,9 @@ info:
 paths:
   /api/v1/alerts:
     get:
-      operationId: v1_alerts_retrieve
+      operationId: api_v1_alerts_retrieve
       tags:
-      - v1
+      - api
       security:
       - {}
       responses:
@@ -19,9 +19,9 @@ paths:
           description: ''
   /api/v1/alerts/scan:
     post:
-      operationId: v1_alerts_scan_create
+      operationId: api_v1_alerts_scan_create
       tags:
-      - v1
+      - api
       requestBody:
         content:
           application/json:
@@ -45,9 +45,9 @@ paths:
           description: ''
   /api/v1/analytics/order-completion:
     get:
-      operationId: v1_analytics_order_completion_retrieve
+      operationId: api_v1_analytics_order_completion_retrieve
       tags:
-      - v1
+      - api
       security:
       - {}
       responses:
@@ -59,9 +59,9 @@ paths:
           description: ''
   /api/v1/analytics/summary:
     get:
-      operationId: v1_analytics_summary_retrieve
+      operationId: api_v1_analytics_summary_retrieve
       tags:
-      - v1
+      - api
       security:
       - {}
       responses:
@@ -73,9 +73,9 @@ paths:
           description: ''
   /api/v1/analytics/work-hours:
     get:
-      operationId: v1_analytics_work_hours_retrieve
+      operationId: api_v1_analytics_work_hours_retrieve
       tags:
-      - v1
+      - api
       security:
       - {}
       responses:
@@ -87,9 +87,9 @@ paths:
           description: ''
   /api/v1/health:
     get:
-      operationId: v1_health_retrieve
+      operationId: api_v1_health_retrieve
       tags:
-      - v1
+      - api
       security:
       - {}
       responses:
@@ -101,9 +101,9 @@ paths:
           description: ''
   /api/v1/meta:
     get:
-      operationId: v1_meta_retrieve
+      operationId: api_v1_meta_retrieve
       tags:
-      - v1
+      - api
       security:
       - {}
       responses:
@@ -117,7 +117,7 @@ paths:
     get:
       operationId: list_molds
       tags:
-      - v1
+      - api
       security:
       - {}
       responses:
@@ -137,7 +137,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       security:
       - {}
       responses:
@@ -149,7 +149,7 @@ paths:
           description: ''
   /api/v1/molds/{mold_id}/maintenance-status:
     get:
-      operationId: v1_molds_maintenance_status_retrieve
+      operationId: api_v1_molds_maintenance_status_retrieve
       parameters:
       - in: path
         name: mold_id
@@ -157,7 +157,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       security:
       - {}
       responses:
@@ -169,7 +169,7 @@ paths:
           description: ''
   /api/v1/molds/{mold_id}/records:
     get:
-      operationId: v1_molds_records_retrieve
+      operationId: api_v1_molds_records_retrieve
       parameters:
       - in: path
         name: mold_id
@@ -177,7 +177,84 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAPIEnvelope'
+          description: ''
+  /api/v1/report-submissions/{submission_id}/evidence/{evidence_id}:
+    get:
+      operationId: api_v1_report_submissions_evidence_retrieve
+      parameters:
+      - in: path
+        name: evidence_id
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAPIEnvelope'
+          description: ''
+  /api/v1/report-submissions/{submission_id}/review:
+    post:
+      operationId: api_v1_report_submissions_review_create
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportReview'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReportReview'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReportReview'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAPIEnvelope'
+          description: ''
+  /api/v1/report-submissions/{submission_id}/review-context:
+    get:
+      operationId: api_v1_report_submissions_review_context_retrieve
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
       security:
       - {}
       responses:
@@ -189,9 +266,9 @@ paths:
           description: ''
   /api/v1/tracking/scan:
     post:
-      operationId: v1_tracking_scan_create
+      operationId: api_v1_tracking_scan_create
       tags:
-      - v1
+      - api
       requestBody:
         content:
           application/json:
@@ -217,7 +294,7 @@ paths:
     get:
       operationId: list_work_orders
       tags:
-      - v1
+      - api
       security:
       - {}
       responses:
@@ -237,7 +314,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       security:
       - {}
       responses:
@@ -249,7 +326,7 @@ paths:
           description: ''
   /api/v1/work-orders/{work_order_id}/assign:
     post:
-      operationId: v1_work_orders_assign_create
+      operationId: api_v1_work_orders_assign_create
       parameters:
       - in: path
         name: work_order_id
@@ -257,7 +334,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       requestBody:
         content:
           application/json:
@@ -281,7 +358,7 @@ paths:
           description: ''
   /api/v1/work-orders/{work_order_id}/auto-assign:
     post:
-      operationId: v1_work_orders_auto_assign_create
+      operationId: api_v1_work_orders_auto_assign_create
       parameters:
       - in: path
         name: work_order_id
@@ -289,7 +366,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       requestBody:
         content:
           application/json:
@@ -313,7 +390,7 @@ paths:
           description: ''
   /api/v1/work-orders/{work_order_id}/candidates:
     get:
-      operationId: v1_work_orders_candidates_retrieve
+      operationId: api_v1_work_orders_candidates_retrieve
       parameters:
       - in: path
         name: work_order_id
@@ -321,7 +398,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       security:
       - {}
       responses:
@@ -333,7 +410,7 @@ paths:
           description: ''
   /api/v1/work-orders/{work_order_id}/continue-processing:
     post:
-      operationId: v1_work_orders_continue_processing_create
+      operationId: api_v1_work_orders_continue_processing_create
       parameters:
       - in: path
         name: work_order_id
@@ -341,7 +418,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       requestBody:
         content:
           application/json:
@@ -365,7 +442,7 @@ paths:
           description: ''
   /api/v1/work-orders/{work_order_id}/create-repair-task:
     post:
-      operationId: v1_work_orders_create_repair_task_create
+      operationId: api_v1_work_orders_create_repair_task_create
       parameters:
       - in: path
         name: work_order_id
@@ -373,7 +450,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       requestBody:
         content:
           application/json:
@@ -397,7 +474,7 @@ paths:
           description: ''
   /api/v1/work-orders/{work_order_id}/email-context:
     get:
-      operationId: v1_work_orders_email_context_retrieve
+      operationId: api_v1_work_orders_email_context_retrieve
       parameters:
       - in: path
         name: work_order_id
@@ -405,7 +482,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       security:
       - {}
       responses:
@@ -417,7 +494,7 @@ paths:
           description: ''
   /api/v1/work-orders/{work_order_id}/knowledge:
     post:
-      operationId: v1_work_orders_knowledge_create
+      operationId: api_v1_work_orders_knowledge_create
       parameters:
       - in: path
         name: work_order_id
@@ -425,7 +502,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       requestBody:
         content:
           application/json:
@@ -449,7 +526,7 @@ paths:
           description: ''
   /api/v1/work-orders/{work_order_id}/knowledge-context:
     get:
-      operationId: v1_work_orders_knowledge_context_retrieve
+      operationId: api_v1_work_orders_knowledge_context_retrieve
       parameters:
       - in: path
         name: work_order_id
@@ -457,7 +534,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       security:
       - {}
       responses:
@@ -469,7 +546,7 @@ paths:
           description: ''
   /api/v1/work-orders/{work_order_id}/pause:
     post:
-      operationId: v1_work_orders_pause_create
+      operationId: api_v1_work_orders_pause_create
       parameters:
       - in: path
         name: work_order_id
@@ -477,7 +554,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       requestBody:
         content:
           application/json:
@@ -501,7 +578,7 @@ paths:
           description: ''
   /api/v1/work-orders/{work_order_id}/repair-completed:
     post:
-      operationId: v1_work_orders_repair_completed_create
+      operationId: api_v1_work_orders_repair_completed_create
       parameters:
       - in: path
         name: work_order_id
@@ -509,7 +586,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       requestBody:
         content:
           application/json:
@@ -533,7 +610,7 @@ paths:
           description: ''
   /api/v1/work-orders/{work_order_id}/report:
     post:
-      operationId: v1_work_orders_report_create
+      operationId: api_v1_work_orders_report_create
       parameters:
       - in: path
         name: work_order_id
@@ -541,7 +618,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       requestBody:
         content:
           application/json:
@@ -565,7 +642,7 @@ paths:
           description: ''
   /api/v1/work-orders/{work_order_id}/resume:
     post:
-      operationId: v1_work_orders_resume_create
+      operationId: api_v1_work_orders_resume_create
       parameters:
       - in: path
         name: work_order_id
@@ -573,7 +650,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       requestBody:
         content:
           application/json:
@@ -597,7 +674,7 @@ paths:
           description: ''
   /api/v1/work-orders/{work_order_id}/send-email:
     post:
-      operationId: v1_work_orders_send_email_create
+      operationId: api_v1_work_orders_send_email_create
       parameters:
       - in: path
         name: work_order_id
@@ -605,7 +682,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       requestBody:
         content:
           application/json:
@@ -653,7 +730,7 @@ paths:
           description: SMTP明确失败或发送结果无法确认
   /api/v1/work-orders/{work_order_id}/start:
     post:
-      operationId: v1_work_orders_start_create
+      operationId: api_v1_work_orders_start_create
       parameters:
       - in: path
         name: work_order_id
@@ -661,7 +738,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       requestBody:
         content:
           application/json:
@@ -685,7 +762,7 @@ paths:
           description: ''
   /api/v1/work-orders/{work_order_id}/timeline:
     get:
-      operationId: v1_work_orders_timeline_retrieve
+      operationId: api_v1_work_orders_timeline_retrieve
       parameters:
       - in: path
         name: work_order_id
@@ -693,7 +770,7 @@ paths:
           type: string
         required: true
       tags:
-      - v1
+      - api
       security:
       - {}
       responses:
@@ -705,9 +782,9 @@ paths:
           description: ''
   /api/v1/work-orders/overdue:
     get:
-      operationId: v1_work_orders_overdue_retrieve
+      operationId: api_v1_work_orders_overdue_retrieve
       tags:
-      - v1
+      - api
       security:
       - {}
       responses:
@@ -777,6 +854,16 @@ components:
           maxLength: 120
       required:
       - client_request_id
+    DecisionEnum:
+      enum:
+      - COMPLETE
+      - ABNORMAL
+      - NEEDS_MORE_INFO
+      type: string
+      description: |-
+        * `COMPLETE` - COMPLETE
+        * `ABNORMAL` - ABNORMAL
+        * `NEEDS_MORE_INFO` - NEEDS_MORE_INFO
     InspectionResult:
       type: object
       properties:
@@ -805,8 +892,13 @@ components:
         knowledge_snapshot_version:
           type: string
           maxLength: 64
+        catalog_version:
+          type: string
+          writeOnly: true
+          maxLength: 64
         title:
           type: string
+          default: ''
           maxLength: 240
         items:
           type: array
@@ -825,8 +917,6 @@ components:
       required:
       - client_request_id
       - items
-      - knowledge_snapshot_version
-      - title
     KnowledgeItem:
       type: object
       properties:
@@ -838,17 +928,29 @@ components:
           maxLength: 500
         criteria:
           type: string
+          default: ''
           maxLength: 2000
         method:
           type: string
+          default: ''
           maxLength: 200
         required:
           type: boolean
+        title:
+          type: string
+          maxLength: 240
+        knowledge_type:
+          type: string
+          maxLength: 120
+        content:
+          type: string
+          maxLength: 4000
+        source:
+          type: string
+          maxLength: 500
       required:
-      - criteria
       - item
       - knowledge_id
-      - method
       - required
     NullEnum:
       enum:
@@ -948,6 +1050,62 @@ components:
       - knowledge_package_hash
       - report_summary
       - report_type
+    ReportReview:
+      type: object
+      properties:
+        client_request_id:
+          type: string
+          maxLength: 120
+        decision:
+          $ref: '#/components/schemas/DecisionEnum'
+        assessment_summary:
+          type: string
+          maxLength: 4000
+          minLength: 1
+        confidence:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,1}(?:\.\d{0,4})?$
+        knowledge_package_hash:
+          type: string
+          maxLength: 64
+          minLength: 64
+        inspection_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/InspectionResult'
+        abnormal_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AbnormalItem'
+        abnormal_next_action:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/AbnormalNextActionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        reason_codes:
+          type: array
+          items:
+            type: string
+            maxLength: 120
+          maxItems: 20
+        knowledge_sources:
+          type: array
+          items:
+            type: string
+            maxLength: 500
+          maxItems: 20
+        review_model:
+          type: string
+          default: ''
+          maxLength: 200
+      required:
+      - assessment_summary
+      - client_request_id
+      - confidence
+      - decision
+      - knowledge_package_hash
     ReportTypeEnum:
       enum:
       - NORMAL

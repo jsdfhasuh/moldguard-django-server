@@ -20,6 +20,8 @@ export COMPOSE_PROJECT_NAME="$compose_project"
 
 docker compose --env-file "$compose_env" config --quiet
 docker compose --env-file "$compose_env" build
+docker compose --env-file "$compose_env" run --rm --no-deps --user 0 api \
+    chown -R 10001:10001 /app/media
 docker compose --env-file "$compose_env" run --rm --no-deps api python manage.py check
 docker compose --env-file "$compose_env" up -d
 docker compose --env-file "$compose_env" ps

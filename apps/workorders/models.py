@@ -1,4 +1,8 @@
+from pathlib import Path
+
 from django.db import models
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 
 from apps.molds.models import Alert, Mold
 from apps.staff.models import Employee
@@ -181,3 +185,89 @@ class MaintenanceRecord(models.Model):
 
     def __str__(self):
         return self.record_id
+
+
+class ReportSubmission(models.Model):
+    class Status(models.TextChoices):
+        PENDING_REVIEW = "PENDING_REVIEW", "等待AI审核"
+        FINALIZED = "FINALIZED", "已完成Django裁决"
+        NEEDS_MORE_INFO = "NEEDS_MORE_INFO", "需要补充材料"
+
+    class ReviewDecision(models.TextChoices):
+        COMPLETE = "COMPLETE", "建议完成"
+        ABNORMAL = "ABNORMAL", "建议异常报工"
+        NEEDS_MORE_INFO = "NEEDS_MORE_INFO", "需要补充材料"
+
+    class WebhookStatus(models.TextChoices):
+        PENDING = "PENDING", "等待触发"
+        SENDING = "SENDING", "触发中"
+        DELIVERED = "DELIVERED", "已送达"
+        FAILED = "FAILED", "触发失败"
+        NOT_CONFIGURED = "NOT_CONFIGURED", "未配置"
+
+    submission_id = models.CharField(max_length=64, primary_key=True)
+    work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.CASCADE, related_name="report_submissions"
+    )
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.PENDING_REVIEW)
+    client_request_id = models.CharField(max_length=120, unique=True)
+    report_text = models.TextField()
+    actual_work_hours = models.DecimalField(max_digits=8, decimal_places=2)
+    parts_replaced_json = models.JSONField(default=list)
+    source_fault_id = models.CharField(max_length=100, blank=True, default="")
+    knowledge_package_hash = models.CharField(max_length=64)
+    review_decision = models.CharField(
+        max_length=32, choices=ReviewDecision.choices, blank=True, default=""
+    )
+    review_confidence = models.DecimalField(max_digits=5, decimal_places=4, null=True, blank=True)
+    review_summary = models.TextField(blank=True, default="")
+    review_payload_json = models.JSONField(default=dict)
+    final_report_data_json = models.JSONField(default=dict)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    webhook_status = models.CharField(
+        max_length=32, choices=WebhookStatus.choices, default=WebhookStatus.PENDING
+    )
+    webhook_error = models.TextField(blank=True, default="")
+    webhook_delivered_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["work_order", "status", "created_at"]),
+            models.Index(fields=["webhook_status", "created_at"]),
+        ]
+
+    def __str__(self):
+        return self.submission_id
+
+
+def report_evidence_upload_to(instance, filename):
+    extension = Path(filename).suffix.lower()
+    return f"report-evidence/{instance.submission_id}/{instance.evidence_id}{extension}"
+
+
+class ReportEvidence(models.Model):
+    evidence_id = models.CharField(max_length=64, primary_key=True)
+    submission = models.ForeignKey(
+        ReportSubmission, on_delete=models.CASCADE, related_name="evidence"
+    )
+    file = models.FileField(upload_to=report_evidence_upload_to, max_length=500)
+    original_name = models.CharField(max_length=255, blank=True, default="")
+    content_type = models.CharField(max_length=100)
+    byte_size = models.PositiveBigIntegerField(default=0)
+    sha256 = models.CharField(max_length=64, blank=True, default="")
+    display_order = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["display_order", "created_at", "evidence_id"]
+
+    def __str__(self):
+        return self.evidence_id
+
+
+@receiver(post_delete, sender=ReportEvidence)
+def delete_report_evidence_file(sender, instance, **kwargs):
+    if instance.file:
+        instance.file.delete(save=False)

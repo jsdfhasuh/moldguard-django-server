@@ -157,3 +157,89 @@ class WorkOrderReportForm(forms.Form):
             "abnormal_next_action": self.cleaned_data.get("abnormal_next_action") or None,
             "knowledge_package_hash": self.cleaned_data["knowledge_package_hash"],
         }
+
+
+class MultipleImageInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+
+class MultipleImageField(forms.FileField):
+    def clean(self, data, initial=None):
+        single_clean = super().clean
+        if isinstance(data, (list, tuple)):
+            if not data:
+                single_clean(None, initial)
+            return [single_clean(item, initial) for item in data]
+        return [single_clean(data, initial)]
+
+
+class ReportSubmissionForm(forms.Form):
+    submission_id = forms.CharField(widget=forms.HiddenInput)
+    report_form_schema_version = forms.CharField(widget=forms.HiddenInput)
+    knowledge_package_hash = forms.CharField(widget=forms.HiddenInput)
+    report_text = forms.CharField(
+        label="完成情况说明",
+        min_length=1,
+        max_length=2000,
+        help_text="说明本次完成的作业、检查情况和仍需处理的问题。",
+        widget=forms.Textarea(attrs={"rows": 5}),
+    )
+    images = MultipleImageField(
+        label="现场照片",
+        help_text="至少1张，最多10张；支持JPEG、PNG和WebP。",
+        widget=MultipleImageInput(attrs={"accept": "image/jpeg,image/png,image/webp"}),
+    )
+    actual_work_hours = forms.DecimalField(
+        label="实际作业工时",
+        min_value=Decimal("0.01"),
+        max_value=Decimal("999.99"),
+        max_digits=5,
+        decimal_places=2,
+    )
+    parts_replaced_text = forms.CharField(
+        label="更换零件",
+        required=False,
+        help_text="每行填写一个更换件。",
+        widget=forms.Textarea(attrs={"rows": 3}),
+    )
+
+    def __init__(self, *args, work_order, **kwargs):
+        self.work_order = work_order
+        initial = kwargs.setdefault("initial", {})
+        initial.setdefault("submission_id", f"submission-{uuid.uuid4().hex}")
+        initial.setdefault("report_form_schema_version", settings.MOLDGUARD_REPORT_SCHEMA_VERSION)
+        initial.setdefault("knowledge_package_hash", work_order.knowledge_package_hash)
+        super().__init__(*args, **kwargs)
+
+    def clean_report_form_schema_version(self):
+        value = self.cleaned_data["report_form_schema_version"]
+        if value != settings.MOLDGUARD_REPORT_SCHEMA_VERSION:
+            raise forms.ValidationError("报工表单版本不匹配，请刷新页面后重试")
+        return value
+
+    def clean_knowledge_package_hash(self):
+        value = self.cleaned_data["knowledge_package_hash"]
+        if value != self.work_order.knowledge_package_hash:
+            raise forms.ValidationError("知识包已变化，请刷新页面后重试")
+        return value
+
+    def clean_images(self):
+        images = self.cleaned_data["images"]
+        if len(images) > settings.MOLDGUARD_REPORT_MAX_IMAGES:
+            raise forms.ValidationError(f"现场照片最多{settings.MOLDGUARD_REPORT_MAX_IMAGES}张")
+        return images
+
+    def submission_payload(self):
+        parts = [
+            {"description": line.strip()}
+            for line in (self.cleaned_data.get("parts_replaced_text") or "").splitlines()
+            if line.strip()
+        ]
+        return {
+            "client_request_id": self.cleaned_data["submission_id"],
+            "report_text": self.cleaned_data["report_text"],
+            "actual_work_hours": self.cleaned_data["actual_work_hours"],
+            "images": self.cleaned_data["images"],
+            "parts_replaced": parts,
+            "knowledge_package_hash": self.cleaned_data["knowledge_package_hash"],
+        }

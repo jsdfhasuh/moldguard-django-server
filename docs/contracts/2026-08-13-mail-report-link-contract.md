@@ -1,5 +1,7 @@
 # MoldGuard 邮件点检知识与报工链接契约
 
+> **2026-08-14 状态**：本契约的派工、知识包、SMTP 邮件和底层结构化报工规则继续有效；员工 HTML 报工入口已由 [REPORT-REVIEW-2.1](./2026-08-14-ai-reviewed-report-contract.md) 取代。员工现在只提交文字与真实图片，先进入 AI 审核，再由 Django 调用本契约第 5 节的结构化规则完成最终裁决。第 4 节旧表单字段和“HTML 直接调用报工服务”的描述不再作为当前员工流程。
+
 - **版本**：`REPORT-FORM-1.1`
 - **知识库**：`MOLDGUARD-KB-1.2`
 - **计划**：V5.0 + V5.1
@@ -37,32 +39,42 @@
 
 ## 2. 知识包写入与锁定
 
+知识库检索和知识包组装均由平台完成。Django不访问平台知识库，也不生成知识正文；它只接收平台实际检索结果，完成校验、规范化、保存和哈希。
+
 ```http
 POST /api/v1/work-orders/{work_order_id}/knowledge
 ```
 
-请求：
+平台请求：
 
 ```json
 {
-  "client_request_id": "knowledge-WO-001-001",
-  "knowledge_snapshot_version": "MOLDGUARD-KB-1.2",
-  "title": "注塑模具周期保养点检",
+  "catalog_version": "MOLDGUARD-KB-1.2",
   "items": [
     {
-      "knowledge_id": "CHK-INJ-001",
-      "item": "模具外观",
-      "criteria": "配件齐全完好无异常",
-      "method": "目视",
+      "knowledge_id": "KB-INJECTION-001",
+      "title": "型腔点检",
+      "item": "检查模具表面及型腔",
+      "knowledge_type": "INSPECTION_STANDARD",
+      "content": "清洁后检查模具表面和型腔是否存在异物、损伤或异常。",
+      "source": "MOLDGUARD-KB-1.2",
       "required": true
     }
   ],
-  "safety_notes": ["设备停止、断电并防止误启动"],
-  "source_documents": ["02_保养内容_点检_储放_故障工时与邮件链接报工.md"]
+  "client_request_id": "knowledge-WO-001-001"
 }
 ```
 
-Django对规范化 JSON 计算：
+平台请求约束：
+
+- `catalog_version` 必须匹配服务器当前知识版本；
+- 每个 `items[]` 必须提供 `knowledge_id/title/item/knowledge_type/content/source/required`；
+- `required` 必须是布尔值；
+- 平台不得把大模型补写或改写的内容冒充知识库检索结果。
+
+Django保留平台字段，并将 `catalog_version` 规范化为内部 `knowledge_snapshot_version`、将 `content` 同步为内部 `criteria`。若调用方仍使用原有规范字段，`knowledge_snapshot_version/title/items[].criteria/method/safety_notes/source_documents` 也继续兼容。两种请求最终都保存为同一种工单知识快照。
+
+Django对规范化后的 JSON 计算：
 
 ```text
 knowledge_package_hash = SHA-256

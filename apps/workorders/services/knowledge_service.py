@@ -42,6 +42,26 @@ def _validate_knowledge_package(payload):
         identifier = item.get("knowledge_id")
         if not isinstance(identifier, str) or not identifier.strip():
             raise BusinessError("VALIDATION_ERROR", f"items[{index}].knowledge_id不能为空")
+        if not isinstance(item.get("item"), str) or not item["item"].strip():
+            raise BusinessError("VALIDATION_ERROR", f"items[{index}].item不能为空")
+        if type(item.get("required")) is not bool:
+            raise BusinessError("VALIDATION_ERROR", f"items[{index}].required必须是布尔值")
+        criteria = item.get("criteria")
+        content = item.get("content")
+        if not any(isinstance(value, str) and value.strip() for value in (criteria, content)):
+            raise BusinessError("VALIDATION_ERROR", f"items[{index}].criteria和content至少填写一个")
+        platform_fields = ("title", "knowledge_type", "content", "source")
+        if any(field in item for field in platform_fields):
+            missing = [
+                field
+                for field in platform_fields
+                if not isinstance(item.get(field), str) or not item[field].strip()
+            ]
+            if missing:
+                raise BusinessError(
+                    "VALIDATION_ERROR",
+                    f"items[{index}]平台知识字段不完整：{', '.join(missing)}",
+                )
         identifiers.append(identifier)
     if len(set(identifiers)) != len(identifiers):
         raise BusinessError("VALIDATION_ERROR", "knowledge_id不允许重复")

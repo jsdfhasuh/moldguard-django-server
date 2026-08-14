@@ -2,16 +2,22 @@ import pytest
 from django.core import mail
 from django.test import Client
 
-from apps.workorders.models import WorkOrder
-from tests.helpers import assign_work_order, save_knowledge, scan_work_order
+from apps.workorders.models import ReportSubmission, WorkOrder
+from tests.helpers import (
+    assign_work_order,
+    complete_review_payload,
+    save_knowledge,
+    scan_work_order,
+)
 from tests.web.test_report_page import html_normal_payload
 
 
 @pytest.mark.django_db
 def test_django_smtp_mail_link_completes_html_report_workflow(
-    api_client, seeded_demo, knowledge_payload, settings
+    api_client, seeded_demo, knowledge_payload, settings, tmp_path
 ):
     settings.MOLDGUARD_PUBLIC_BASE_URL = "https://mail-flow.moldguard.example"
+    settings.MEDIA_ROOT = tmp_path
     work_order_id, _ = scan_work_order(api_client, "DEMO-INJ-050K", "smtp-mail-report")
     assign_work_order(api_client, work_order_id, "DEMO-EMP-INJ", "smtp-mail-report")
     knowledge = save_knowledge(api_client, work_order_id, knowledge_payload, "smtp-mail-report")
@@ -36,9 +42,16 @@ def test_django_smtp_mail_link_completes_html_report_workflow(
     work_order = WorkOrder.objects.get(pk=work_order_id)
     payload = html_normal_payload(work_order, submission_id="smtp-mail-report-submit")
     payload["csrfmiddlewaretoken"] = csrf_token
-    completed = browser.post(f"/report/{work_order_id}", payload)
+    pending = browser.post(f"/report/{work_order_id}", payload)
+    assert pending.status_code == 202
+    assert "报工等待 AI 审核" in pending.content.decode()
+    submission = ReportSubmission.objects.get(work_order_id=work_order_id)
+    completed = api_client.post(
+        f"/api/v1/report-submissions/{submission.submission_id}/review",
+        complete_review_payload("smtp-mail-report", knowledge["knowledge_package_hash"]),
+        format="json",
+    )
     assert completed.status_code == 200
-    assert "报工已完成" in completed.content.decode()
     work_order.refresh_from_db()
     assert work_order.status == WorkOrder.Status.COMPLETED
     assert work_order.email_status == WorkOrder.EmailStatus.SENT

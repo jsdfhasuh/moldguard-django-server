@@ -1,5 +1,6 @@
 import os
 import re
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,6 +26,19 @@ def env_positive_int(name, default):
         raise ValueError(f"{name} must be a positive integer") from exc
     if value <= 0:
         raise ValueError(f"{name} must be a positive integer")
+    return value
+
+
+def env_decimal(name, default, *, minimum=None, maximum=None):
+    raw = os.getenv(name, str(default)).strip()
+    try:
+        value = Decimal(raw)
+    except InvalidOperation as exc:
+        raise ValueError(f"{name} must be a decimal value") from exc
+    if minimum is not None and value < minimum:
+        raise ValueError(f"{name} must be at least {minimum}")
+    if maximum is not None and value > maximum:
+        raise ValueError(f"{name} must be at most {maximum}")
     return value
 
 
@@ -105,6 +119,8 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = Path(os.getenv("DJANGO_STATIC_ROOT", str(BASE_DIR / "staticfiles")))
 STATICFILES_DIRS = [BASE_DIR / "static"]
+MEDIA_ROOT = Path(os.getenv("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media")))
+MEDIA_URL = "/media/"
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {
@@ -179,3 +195,20 @@ MOLDGUARD_PUBLIC_BASE_URL = os.getenv("MOLDGUARD_PUBLIC_BASE_URL", "http://127.0
 MOLDGUARD_KNOWLEDGE_VERSION = os.getenv("MOLDGUARD_KNOWLEDGE_VERSION", "MOLDGUARD-KB-1.2")
 MOLDGUARD_REPORT_SCHEMA_VERSION = os.getenv("MOLDGUARD_REPORT_SCHEMA_VERSION", "REPORT-FORM-1.1")
 MOLDGUARD_ABNORMAL_OVERDUE_HOURS = int(os.getenv("MOLDGUARD_ABNORMAL_OVERDUE_HOURS", "4"))
+MOLDGUARD_REPORT_REVIEW_WEBHOOK_URL = os.getenv("MOLDGUARD_REPORT_REVIEW_WEBHOOK_URL", "").strip()
+MOLDGUARD_REPORT_REVIEW_WEBHOOK_TIMEOUT = env_positive_int(
+    "MOLDGUARD_REPORT_REVIEW_WEBHOOK_TIMEOUT", 10
+)
+MOLDGUARD_REPORT_MAX_IMAGES = env_positive_int("MOLDGUARD_REPORT_MAX_IMAGES", 10)
+MOLDGUARD_REPORT_IMAGE_MAX_BYTES = env_positive_int(
+    "MOLDGUARD_REPORT_IMAGE_MAX_BYTES", 8 * 1024 * 1024
+)
+MOLDGUARD_AI_REVIEW_MIN_CONFIDENCE = env_decimal(
+    "MOLDGUARD_AI_REVIEW_MIN_CONFIDENCE",
+    "0.7500",
+    minimum=Decimal("0"),
+    maximum=Decimal("1"),
+)
+DATA_UPLOAD_MAX_MEMORY_SIZE = env_positive_int(
+    "DJANGO_DATA_UPLOAD_MAX_MEMORY_SIZE", 96 * 1024 * 1024
+)

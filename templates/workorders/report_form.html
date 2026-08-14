@@ -4,6 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
   <title>MoldGuard 报工 {{ work_order.work_order_id }}</title>
   <link rel="stylesheet" href="{% static 'report.css' %}">
 </head>
@@ -11,11 +12,16 @@
 <main class="page-shell">
   <header class="hero">
     <p class="eyebrow">MOLDGUARD · MOLDGUARD-KB-1.2</p>
-    <h1>模具保养报工</h1>
+    <h1>提交保养报工材料</h1>
     <p class="status-pill">{{ work_order.get_status_display }}</p>
   </header>
 
   {% if page_error %}<div class="notice error" role="alert">{{ page_error }}</div>{% endif %}
+  {% if needs_more_info_submission %}
+    <div class="notice" role="status">
+      上一批材料需要补充：{{ needs_more_info_submission.review_summary }}。请重新提交完整文字和现场照片。
+    </div>
+  {% endif %}
 
   <section class="card facts">
     <h2>工单与模具</h2>
@@ -39,8 +45,8 @@
     {% for item in knowledge_items %}
       <article class="knowledge-item">
         <strong>{{ item.knowledge_id }} · {{ item.item }}</strong>
-        <p>{{ item.criteria }}</p>
-        <small>方法：{{ item.method }}{% if item.required %} · 必检{% endif %}</small>
+        <p>{% if item.content %}{{ item.content }}{% else %}{{ item.criteria }}{% endif %}</p>
+        <small>{% if item.method %}方法：{{ item.method }} · {% endif %}{% if item.knowledge_type %}类型：{{ item.knowledge_type }} · {% endif %}{% if item.required %}必检{% else %}选检{% endif %}</small>
       </article>
     {% empty %}<p>暂无知识包。</p>{% endfor %}
     {% if safety_notes %}
@@ -50,38 +56,23 @@
   </section>
 
   {% if form and not page_error %}
-  <form method="post" class="report-form" novalidate>
+  <form method="post" enctype="multipart/form-data" class="report-form" novalidate>
     {% csrf_token %}
     {{ form.submission_id }}
     {{ form.report_form_schema_version }}
     {{ form.knowledge_package_hash }}
     {% if form.non_field_errors %}<div class="notice error">{{ form.non_field_errors }}</div>{% endif %}
 
-    <section class="card">
-      <h2>逐项点检</h2>
-      {% for inspection in form.inspection_fields %}
-      <fieldset class="inspection">
-        <legend>{{ inspection.knowledge.knowledge_id }} · {{ inspection.knowledge.item }}</legend>
-        <p>{{ inspection.knowledge.criteria }}</p>
-        {{ inspection.result_field.errors }}{{ inspection.result_field }}
-        <label>{{ inspection.reason_field.label }}{{ inspection.reason_field }}{{ inspection.reason_field.errors }}</label>
-        <label>{{ inspection.note_field.label }}{{ inspection.note_field }}{{ inspection.note_field.errors }}</label>
-      </fieldset>
-      {% endfor %}
-    </section>
-
     <section class="card form-grid">
-      <h2>报工内容</h2>
+      <h2>作业说明与现场证据</h2>
       {% for field in form.visible_fields %}
-        {% if not field.name|slice:":11" == "inspection_" %}
-          <label class="field {% if field.errors %}has-error{% endif %}">
-            <span>{{ field.label }}</span>{{ field }}
-            {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
-            {{ field.errors }}
-          </label>
-        {% endif %}
+        <label class="field {% if field.errors %}has-error{% endif %}">
+          <span>{{ field.label }}</span>{{ field }}
+          {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          {{ field.errors }}
+        </label>
       {% endfor %}
-      <button type="submit">提交报工情况</button>
+      <button type="submit">提交审核</button>
       <p class="identity-note">本页面使用工单已派工人员作为报工人，不要求登录；请勿转发报工链接。</p>
     </section>
   </form>

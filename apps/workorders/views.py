@@ -1,3 +1,4 @@
+from django.http import FileResponse
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework.response import Response
 
@@ -6,13 +7,14 @@ from apps.common.idempotency import replay_or_execute
 from apps.common.responses import success_payload, success_response
 from apps.common.serializers import OpenAPIEnvelopeSerializer
 from apps.common.views import EnvelopeAPIView
-from apps.workorders.models import WorkOrder
+from apps.workorders.models import ReportEvidence, WorkOrder
 from apps.workorders.serializers import (
     AssignSerializer,
     ClientRequestSerializer,
     KnowledgeSerializer,
     PauseSerializer,
     RemarksSerializer,
+    ReportReviewSerializer,
     ReportSerializer,
     SendEmailSerializer,
 )
@@ -38,6 +40,10 @@ from apps.workorders.services.repair_service import (
     completed_repair_result,
     create_repair_task,
 )
+from apps.workorders.services.report_review_service import (
+    apply_report_review,
+    report_review_context,
+)
 from apps.workorders.services.report_service import submit_report
 from apps.workorders.services.tracking_service import list_overdue, scan_overdue
 
@@ -49,10 +55,12 @@ def get_work_order(work_order_id):
         raise BusinessError("WORK_ORDER_NOT_FOUND", "工单不存在", status_code=404) from None
 
 
-def idempotent_response(request, *, action, object_id, payload, message, operation):
+def idempotent_response(
+    request, *, action, object_id, payload, message, operation, status_code=200
+):
     def wrapped():
         data = operation()
-        return 200, success_payload(data, message, request)
+        return status_code, success_payload(data, message, request)
 
     status_code, response_payload = replay_or_execute(
         action=action,
@@ -293,6 +301,60 @@ class WorkOrderReportView(EnvelopeAPIView):
             message="报工提交成功",
             operation=lambda: submit_report(
                 work_order_id,
+                payload,
+                client_request_id=payload["client_request_id"],
+            ),
+        )
+
+
+class ReportReviewContextView(EnvelopeAPIView):
+    def get(self, request, submission_id):
+        return success_response(report_review_context(submission_id), request=request)
+
+
+class ReportEvidenceView(EnvelopeAPIView):
+    def get(self, request, submission_id, evidence_id):
+        try:
+            evidence = ReportEvidence.objects.get(
+                pk=evidence_id,
+                submission_id=submission_id,
+            )
+        except ReportEvidence.DoesNotExist:
+            raise BusinessError(
+                "REPORT_EVIDENCE_NOT_FOUND", "报工图片不存在", status_code=404
+            ) from None
+        if not evidence.file:
+            raise BusinessError(
+                "REPORT_EVIDENCE_NOT_STORED",
+                "报工图片文件不可用",
+                status_code=404,
+            )
+        response = FileResponse(
+            evidence.file.open("rb"),
+            content_type=evidence.content_type,
+            filename=f"{evidence.evidence_id}.{evidence.file.name.rsplit('.', 1)[-1]}",
+        )
+        response["Content-Disposition"] = response["Content-Disposition"].replace(
+            "attachment", "inline", 1
+        )
+        response["X-Content-Type-Options"] = "nosniff"
+        return response
+
+
+class ReportReviewView(EnvelopeAPIView):
+    @extend_schema(request=ReportReviewSerializer, responses=OpenAPIEnvelopeSerializer)
+    def post(self, request, submission_id):
+        serializer = ReportReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+        return idempotent_response(
+            request,
+            action="APPLY_REPORT_REVIEW",
+            object_id=submission_id,
+            payload=payload,
+            message="AI审核结果已由Django裁决",
+            operation=lambda: apply_report_review(
+                submission_id,
                 payload,
                 client_request_id=payload["client_request_id"],
             ),
