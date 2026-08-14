@@ -36,6 +36,8 @@ DEFAULT_FROM_EMAIL
 EMAIL_MESSAGE_ID_DOMAIN
 MOLDGUARD_SMTP_DELIVERY_VERIFIED=false
 DEMO_EMPLOYEE_1_EMAIL ... DEMO_EMPLOYEE_4_EMAIL
+MARIADB_HOST_BIND=127.0.0.1
+MARIADB_HOST_PORT=13306
 ```
 
 Compose 固定设置 `MOLDGUARD_REQUIRE_SMTP=true`，会拒绝 locmem/console、示例SMTP主机、
@@ -61,6 +63,11 @@ curl -f http://127.0.0.1:18081/api/v1/meta
 
 新 MariaDB 固定使用 `runtime/competition/mariadb`，不得指向旧仓库的
 `runtime/mariadb`。
+
+MariaDB 宿主映射由 `MARIADB_HOST_BIND` 和 `MARIADB_HOST_PORT` 控制，示例默认只监听
+`127.0.0.1:13306`。如测试环境明确需要公网访问，可显式设置为 `0.0.0.0:3306`，并在
+主机防火墙和 Oracle Cloud 入站规则中同步放行 TCP 3306。公网 root 登录不应用于真实
+生产数据。
 
 ## 3. 切换前备份
 
