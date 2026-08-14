@@ -8,7 +8,7 @@ from langflow.schema.message import Message
 
 
 class MoldGuardResponseEnvelopeV2(Component):
-    display_name = "MoldGuard 响应信封 V2（单输出）"
+    display_name = "MoldGuard 响应信封 V3（单输出）"
     description = "严格判定 HTTP 响应，输出一个可由平台原生条件节点路由的 Message 信封。"
     icon = "route"
     name = "MoldGuardResponseEnvelopeV2"

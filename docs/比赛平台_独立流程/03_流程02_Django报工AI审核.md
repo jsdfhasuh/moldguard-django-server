@@ -14,10 +14,10 @@
 
 ## V2 设计原则
 
-1. 所有 MoldGuard V2 自定义节点都只有一个输出端口。
-2. `MoldGuard 请求信封 V2` 输出单个 `Data`，包含 `method/url/json_body/context`。
+1. 所有 MoldGuard 单输出自定义节点都只有一个输出端口；请求/响应信封显示为 V3，HTTP 显示为 V2。
+2. `MoldGuard 请求信封 V3` 输出单个 `Data`，包含 `method/url/json_body/context`。
 3. `MoldGuard 单输入 HTTP V2` 执行信封中的 HTTP 请求，并原样传递 `context`。
-4. `MoldGuard 响应信封 V2` 输出单个 `Message`，文本包含 `[MOLDGUARD_OK]` 或 `[MOLDGUARD_FAIL]`。
+4. `MoldGuard 响应信封 V3` 输出单个 `Message`，文本包含 `[MOLDGUARD_OK]` 或 `[MOLDGUARD_FAIL]`。
 5. 成功/失败必须使用平台原生“如果-否则”节点路由，不依赖自定义多输出。
 6. Django 保存原始报工材料并作最终裁决；平台只读取上下文和回写建议。
 
@@ -30,11 +30,11 @@
 节点 05 和 10 使用相同配置：
 
 ```text
-输入文本 = 上游 V2 响应信封
+输入文本 = 上游 V3 响应信封
 操作符 = contains
 匹配文本 = [MOLDGUARD_OK]
 区分大小写 = true
-消息 = 同一个上游 V2 响应信封
+消息 = 同一个上游 V3 响应信封
 默认路由 = false_result
 ```
 
@@ -45,14 +45,14 @@
 | 编号 | 节点类型 | 节点名称 |
 |---:|---|---|
 | 01 | 外部触发器(Webhook) | `01_接收Django报工唤醒` |
-| 02 | MoldGuard 请求信封 V2 | `02_构建审核上下文请求` |
+| 02 | MoldGuard 请求信封 V3 | `02_构建审核上下文请求` |
 | 03 | MoldGuard 单输入 HTTP V2 | `03_读取报工审核上下文` |
-| 04 | MoldGuard 响应信封 V2 | `04_验收审核上下文` |
+| 04 | MoldGuard 响应信封 V3 | `04_验收审核上下文` |
 | 05 | 如果-否则 | `05_路由审核上下文` |
 | 06 | 聊天输出 | `06_展示上下文失败` |
-| 07 | MoldGuard 请求信封 V2 | `07_构建安全审核回写请求` |
+| 07 | MoldGuard 请求信封 V3 | `07_构建安全审核回写请求` |
 | 08 | MoldGuard 单输入 HTTP V2 | `08_回写审核建议` |
-| 09 | MoldGuard 响应信封 V2 | `09_验收Django裁决` |
+| 09 | MoldGuard 响应信封 V3 | `09_验收Django裁决` |
 | 10 | 如果-否则 | `10_路由Django裁决` |
 | 11 | 聊天输出 | `11_展示审核成功` |
 | 12 | 聊天输出 | `12_展示审核失败` |
@@ -232,7 +232,7 @@ body.data.submission_status = NEEDS_MORE_INFO
 ## 验收清单
 
 ```text
-[ ] 流程 02 中的 V2 自定义节点都只有一个输出端口
+[ ] 流程 02 中的单输出自定义节点都只有一个输出端口
 [ ] 员工只从 Django report_url 上传文字和图片
 [ ] Webhook 不含员工正文和图片
 [ ] 平台能 GET 审核上下文及全部证据 URL

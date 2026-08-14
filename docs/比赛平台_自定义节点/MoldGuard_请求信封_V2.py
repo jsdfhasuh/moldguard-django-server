@@ -1,5 +1,6 @@
 import json
 import re
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import quote
 
@@ -8,9 +9,11 @@ from langflow.io import DropdownInput, HandleInput, MessageTextInput, Output
 from langflow.schema import Data
 from langflow.schema.message import Message
 
+REQUEST_ID_TIMEZONE = timezone(timedelta(hours=8))
+
 
 class MoldGuardRequestEnvelopeV2(Component):
-    display_name = "MoldGuard 请求信封 V2（单输出）"
+    display_name = "MoldGuard 请求信封 V3（单输出）"
     description = "根据业务动作生成单个请求 Data 信封；本节点不发送 HTTP 请求。"
     icon = "package"
     name = "MoldGuardRequestEnvelopeV2"
@@ -80,8 +83,8 @@ class MoldGuardRequestEnvelopeV2(Component):
         ),
         MessageTextInput(
             name="demo_run_id",
-            display_name="演示批次",
-            info="扫描入口的稳定批次 ID。",
+            display_name="启动指令",
+            info="连接聊天输入；用户输入“开始检查”等指令，系统自动生成带北京时间的运行批次。",
             show=True,
         ),
         HandleInput(
@@ -136,6 +139,11 @@ class MoldGuardRequestEnvelopeV2(Component):
         if not result:
             raise ValueError(f"{label}不能为空。")
         return result
+
+    @staticmethod
+    def _new_flow_run_id() -> str:
+        timestamp = datetime.now(REQUEST_ID_TIMEZONE).strftime("%Y%m%d-%H%M%S-%f")
+        return f"FLOW01-{timestamp}"
 
     @staticmethod
     def _data_dict(value: Any, label: str) -> dict[str, Any]:
@@ -264,7 +272,8 @@ class MoldGuardRequestEnvelopeV2(Component):
         operation = self.operation
 
         if operation == self.SCAN:
-            demo_run_id = self._required_text(self.demo_run_id, "演示批次")
+            start_command = self._required_text(self.demo_run_id, "启动指令")
+            demo_run_id = self._new_flow_run_id()
             result = self._envelope(
                 operation,
                 "POST",
@@ -272,12 +281,13 @@ class MoldGuardRequestEnvelopeV2(Component):
                 {"client_request_id": f"{demo_run_id}-scan"},
                 {
                     "demo_run_id": demo_run_id,
+                    "start_command": start_command,
                     "scan_scope": "ALL_NON_DISABLED_MOLDS",
                 },
             )
         elif operation == self.AUTO_ASSIGN:
             _, context = self._upstream_context()
-            demo_run_id = self._required_text(context.get("demo_run_id"), "演示批次")
+            demo_run_id = self._required_text(context.get("demo_run_id"), "系统运行批次")
             work_order_id = self._required_text(context.get("work_order_id"), "工单 ID")
             result = self._envelope(
                 operation,
@@ -298,7 +308,7 @@ class MoldGuardRequestEnvelopeV2(Component):
             )
         elif operation == self.SEND_EMAIL:
             _, context = self._upstream_context()
-            demo_run_id = self._required_text(context.get("demo_run_id"), "演示批次")
+            demo_run_id = self._required_text(context.get("demo_run_id"), "系统运行批次")
             work_order_id = self._required_text(context.get("work_order_id"), "工单 ID")
             result = self._envelope(
                 operation,

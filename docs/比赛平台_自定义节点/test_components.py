@@ -118,6 +118,20 @@ class ComponentOutputTests(unittest.TestCase):
             with self.subTest(component=component_class.__name__):
                 self.assertEqual(len(component_class.outputs), 1)
 
+    def test_display_names_match_registered_platform_versions(self):
+        expected_names = {
+            REQUEST_V2.MoldGuardRequestEnvelopeV2: "MoldGuard 请求信封 V3（单输出）",
+            HTTP_V2.MoldGuardSingleInputHttpV2: "MoldGuard 单输入 HTTP V2",
+            RESPONSE_V2.MoldGuardResponseEnvelopeV2: "MoldGuard 响应信封 V3（单输出）",
+            SNAPSHOT_V2.MoldGuardKnowledgeSnapshotEnvelopeV2: (
+                "MoldGuard 知识快照信封 V2（单输出）"
+            ),
+        }
+
+        for component_class, display_name in expected_names.items():
+            with self.subTest(component=component_class.__name__):
+                self.assertEqual(component_class.display_name, display_name)
+
 
 class RequestAdapterTests(unittest.TestCase):
     def _component(self):
@@ -377,20 +391,40 @@ class RequestEnvelopeV2Tests(unittest.TestCase):
     def test_scan_builds_all_molds_request_without_mold_ids(self):
         component = self._component()
         component.operation = component.SCAN
-        component.demo_run_id = "DEMO-001"
+        component.demo_run_id = _Message(text="开始检查")
 
-        request = component.build_request().data
+        with patch.object(
+            component,
+            "_new_flow_run_id",
+            return_value="FLOW01-20260814-153045-123456",
+        ):
+            request = component.build_request().data
 
         self.assertEqual(request["schema_version"], "moldguard.request.v2")
         self.assertEqual(request["method"], "POST")
         self.assertTrue(request["url"].endswith("/api/v1/alerts/scan"))
         self.assertEqual(
             request["json_body"],
-            {"client_request_id": "DEMO-001-scan"},
+            {"client_request_id": "FLOW01-20260814-153045-123456-scan"},
         )
         self.assertNotIn("mold_ids", {field.name for field in component.inputs})
-        self.assertEqual(request["context"]["demo_run_id"], "DEMO-001")
+        self.assertEqual(
+            request["context"]["demo_run_id"],
+            "FLOW01-20260814-153045-123456",
+        )
+        self.assertEqual(request["context"]["start_command"], "开始检查")
         self.assertEqual(request["context"]["scan_scope"], "ALL_NON_DISABLED_MOLDS")
+
+        start_field = next(field for field in component.inputs if field.name == "demo_run_id")
+        self.assertEqual(start_field.display_name, "启动指令")
+
+    def test_scan_requires_nonempty_start_command(self):
+        component = self._component()
+        component.operation = component.SCAN
+        component.demo_run_id = _Message(text=" ")
+
+        with self.assertRaisesRegex(ValueError, "启动指令"):
+            component.build_request()
 
     def test_auto_assign_reads_work_order_from_success_envelope(self):
         component = self._component()
@@ -510,8 +544,11 @@ class SingleInputHttpV2Tests(unittest.IsolatedAsyncioTestCase):
                 "operation": "扫描预警",
                 "method": "POST",
                 "url": "https://moldguard.oracle.19970219.xyz/api/v1/alerts/scan",
-                "json_body": {"mold_ids": ["MOLD-1"]},
-                "context": {"demo_run_id": "DEMO-001"},
+                "json_body": {"client_request_id": "FLOW01-20260814-153045-123456-scan"},
+                "context": {
+                    "demo_run_id": "FLOW01-20260814-153045-123456",
+                    "start_command": "开始检查",
+                },
             }
         )
         fake_client = _FakeAsyncClient()
@@ -521,8 +558,12 @@ class SingleInputHttpV2Tests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.data["schema_version"], "moldguard.http-response.v2")
         self.assertEqual(response.data["status_code"], 200)
-        self.assertEqual(response.data["context"]["demo_run_id"], "DEMO-001")
-        self.assertEqual(fake_client.request_kwargs["json"]["mold_ids"], ["MOLD-1"])
+        self.assertEqual(
+            response.data["context"]["demo_run_id"],
+            "FLOW01-20260814-153045-123456",
+        )
+        self.assertEqual(fake_client.request_kwargs["json"], component.request.data["json_body"])
+        self.assertNotIn("mold_ids", fake_client.request_kwargs["json"])
 
 
 class ResponseEnvelopeV2Tests(unittest.TestCase):

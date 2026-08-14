@@ -222,7 +222,7 @@ class MoldGuardKnowledgeSnapshotEnvelopeV2(Component):
     def _build(self) -> dict[str, Any]:
         context = self._upstream_context(self.upstream)
         work_order_id = self._required_text(context.get("work_order_id"), "工单 ID")
-        demo_run_id = self._required_text(context.get("demo_run_id"), "演示批次")
+        demo_run_id = self._required_text(context.get("demo_run_id"), "系统运行批次")
         catalog_version = self._required_text(self.catalog_version, "知识目录版本")
 
         items, rejected = self._retrieved_items()
