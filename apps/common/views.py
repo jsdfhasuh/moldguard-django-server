@@ -34,6 +34,17 @@ class MetaView(EnvelopeAPIView):
         smtp_backend_configured = (
             settings.EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend"
         )
+        smtp_delivery_verified = (
+            settings.MOLDGUARD_REQUIRE_SMTP
+            and smtp_backend_configured
+            and settings.MOLDGUARD_SMTP_DELIVERY_VERIFIED
+        )
+        if smtp_delivery_verified:
+            implementation_status = "READY_FOR_COMPETITION"
+        elif settings.MOLDGUARD_REQUIRE_SMTP and smtp_backend_configured:
+            implementation_status = "READY_FOR_SMTP_DELIVERY_TEST"
+        else:
+            implementation_status = "SMTP_CONFIGURATION_REQUIRED"
         return success_response(
             {
                 "service": "moldguard-competition-server",
@@ -44,12 +55,9 @@ class MetaView(EnvelopeAPIView):
                 "authentication_required": False,
                 "data_classification": "DEMO_ONLY",
                 "smtp_backend_configured": smtp_backend_configured,
+                "smtp_delivery_verified": smtp_delivery_verified,
                 "email_backend": settings.EMAIL_BACKEND,
-                "implementation_status": (
-                    "READY_FOR_SMTP_DELIVERY_TEST"
-                    if settings.MOLDGUARD_REQUIRE_SMTP and smtp_backend_configured
-                    else "SMTP_CONFIGURATION_REQUIRED"
-                ),
+                "implementation_status": implementation_status,
             },
             request=request,
         )

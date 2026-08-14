@@ -76,11 +76,11 @@ docs/             完整计划、V5.1决议、一天执行计划、模型和契�
 knowledge-base/   解压后的最终知识文档、发布清单和校验信息
 ```
 
-`agent/competition-server-v1` 已完成 P0、P1/P2 比赛范围，当前状态为
-`READY_FOR_SMTP_CONFIGURATION`。实现包括 Django SMTP 双格式派工邮件、HTML 邮件链接报工、执行状态机、异常继续处理、
+`agent/competition-server-v1` 已完成 P0、P1/P2 比赛范围。实现包括 Django SMTP 双格式派工邮件、HTML 邮件链接报工、执行状态机、异常继续处理、
 关联修模、tracking、基础统计、自动派工和蓝绿部署脚本。SQLite 全量测试、独立
 MariaDB测试和 Nginx 回退已验证；新 SMTP 版本只有在配置真实 SMTP 与收件邮箱、
-完成实际投递验证后才能恢复为 `READY_FOR_COMPETITION`。
+完成实际投递验证并显式设置 `MOLDGUARD_SMTP_DELIVERY_VERIFIED=true` 后，才会报告
+`READY_FOR_COMPETITION`。
 
 当前部署使用独立 Compose 项目 `moldguard-competition`、独立目录
 `runtime/competition/mariadb` 和宿主端口 `127.0.0.1:18081`。旧 `moldguard` 栈、

@@ -16,6 +16,7 @@ def run_check(**overrides):
         "EMAIL_USE_TLS": "false",
         "EMAIL_USE_SSL": "false",
         "MOLDGUARD_REQUIRE_SMTP": "false",
+        "MOLDGUARD_SMTP_DELIVERY_VERIFIED": "false",
         **overrides,
     }
     return subprocess.run(
@@ -63,6 +64,7 @@ def test_development_default_uses_locmem_backend():
                 "EMAIL_TIMEOUT",
                 "DEFAULT_FROM_EMAIL",
                 "EMAIL_MESSAGE_ID_DOMAIN",
+                "MOLDGUARD_SMTP_DELIVERY_VERIFIED",
             }
         },
         capture_output=True,
@@ -85,6 +87,26 @@ def test_competition_requires_real_smtp_settings():
 def test_valid_smtp_settings_pass_django_check():
     result = run_check(
         MOLDGUARD_REQUIRE_SMTP="true",
+        EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
+        EMAIL_HOST="smtp.test.invalid",
+        EMAIL_PORT="587",
+        EMAIL_USE_TLS="true",
+        DEFAULT_FROM_EMAIL="MoldGuard <moldguard@test.invalid>",
+        EMAIL_MESSAGE_ID_DOMAIN="moldguard.test.invalid",
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_delivery_verification_requires_competition_smtp_mode():
+    result = run_check(MOLDGUARD_SMTP_DELIVERY_VERIFIED="true")
+    assert result.returncode != 0
+    assert "MOLDGUARD_SMTP_DELIVERY_VERIFIED requires MOLDGUARD_REQUIRE_SMTP=true" in result.stderr
+
+
+def test_verified_smtp_settings_pass_django_check():
+    result = run_check(
+        MOLDGUARD_REQUIRE_SMTP="true",
+        MOLDGUARD_SMTP_DELIVERY_VERIFIED="true",
         EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
         EMAIL_HOST="smtp.test.invalid",
         EMAIL_PORT="587",

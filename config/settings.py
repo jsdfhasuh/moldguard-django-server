@@ -126,6 +126,7 @@ EMAIL_TIMEOUT = env_positive_int("EMAIL_TIMEOUT", 15)
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "moldguard@localhost").strip()
 EMAIL_MESSAGE_ID_DOMAIN = os.getenv("EMAIL_MESSAGE_ID_DOMAIN", "localhost").strip()
 MOLDGUARD_REQUIRE_SMTP = env_bool("MOLDGUARD_REQUIRE_SMTP", False)
+MOLDGUARD_SMTP_DELIVERY_VERIFIED = env_bool("MOLDGUARD_SMTP_DELIVERY_VERIFIED", False)
 
 if EMAIL_USE_TLS and EMAIL_USE_SSL:
     raise ValueError("EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be true")
@@ -145,6 +146,8 @@ if MOLDGUARD_REQUIRE_SMTP:
         "example.com",
     } or EMAIL_MESSAGE_ID_DOMAIN.lower().endswith(".example.com"):
         raise ValueError("Competition deployment requires a real EMAIL_MESSAGE_ID_DOMAIN")
+elif MOLDGUARD_SMTP_DELIVERY_VERIFIED:
+    raise ValueError("MOLDGUARD_SMTP_DELIVERY_VERIFIED requires MOLDGUARD_REQUIRE_SMTP=true")
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],

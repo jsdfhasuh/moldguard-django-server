@@ -34,6 +34,7 @@ EMAIL_USE_TLS或EMAIL_USE_SSL（二选一或均关闭）
 EMAIL_TIMEOUT=15
 DEFAULT_FROM_EMAIL
 EMAIL_MESSAGE_ID_DOMAIN
+MOLDGUARD_SMTP_DELIVERY_VERIFIED=false
 DEMO_EMPLOYEE_1_EMAIL ... DEMO_EMPLOYEE_4_EMAIL
 ```
 
@@ -54,7 +55,9 @@ curl -f http://127.0.0.1:18081/api/v1/meta
 部署 smoke 会调用 `send-email` 并向当前 DEMO 工单被派工邮箱真实发送邮件。执行前必须
 确认这些地址是授权测试邮箱。HTTP 200 与 `email_status=SENT` 只证明 SMTP 后端接受了
 邮件；最终送达还必须人工检查收件箱中的纯文本/HTML内容、Message-ID、知识哈希和
-`report_url`。
+`report_url`。只有人工确认实际送达后，才可把
+`MOLDGUARD_SMTP_DELIVERY_VERIFIED` 改为 `true`；`/api/v1/meta` 随后才会报告
+`READY_FOR_COMPETITION`。
 
 新 MariaDB 固定使用 `runtime/competition/mariadb`，不得指向旧仓库的
 `runtime/mariadb`。
