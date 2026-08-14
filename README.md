@@ -115,6 +115,18 @@ MariaDB 宿主映射由 `MARIADB_HOST_BIND` 和 `MARIADB_HOST_PORT` 控制。示
 → 查询工时、完成率和模具履历
 ```
 
+## Webhook 往返测试
+
+联调平台 Webhook 时可使用独立、无业务副作用的测试接口：
+
+```text
+POST /api/v1/webhook-probes
+POST /api/v1/webhook-probes/{probe_id}/callback
+GET  /api/v1/webhook-probes/{probe_id}
+```
+
+目标地址只读取服务端的 `MOLDGUARD_WEBHOOK_PROBE_URL`，请求体不能传入 URL。Django 发给平台的负载包含短期一次性回调令牌；数据库只保存令牌的 SHA-256。`roundtrip_status=COMPLETED` 表示平台已接收 Django Webhook 并成功 POST 回 Django。本接口不恢复旧 `platform_probe` 应用或 `/probe/*` API，也不修改任何工单或员工报工数据。
+
 ## 蓝绿部署与回退
 
 - Competition 环境示例：`.env.competition.example`

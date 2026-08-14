@@ -17,5 +17,6 @@ urlpatterns = [
     path("api/v1/", include("apps.molds.urls")),
     path("api/v1/", include("apps.workorders.urls")),
     path("api/v1/", include("apps.analytics.urls")),
+    path("api/v1/", include("apps.webhook_probes.urls")),
     re_path(r"^api/(?P<unmatched_path>.*)$", ApiNotFoundView.as_view(), name="api-not-found"),
 ]

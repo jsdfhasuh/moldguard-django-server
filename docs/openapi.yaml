@@ -290,6 +290,90 @@ paths:
               schema:
                 $ref: '#/components/schemas/OpenAPIEnvelope'
           description: ''
+  /api/v1/webhook-probes:
+    post:
+      operationId: api_v1_webhook_probes_create
+      tags:
+      - Webhook probe
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookProbeCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WebhookProbeCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WebhookProbeCreate'
+        required: true
+      security:
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAPIEnvelope'
+          description: ''
+  /api/v1/webhook-probes/{probe_id}:
+    get:
+      operationId: api_v1_webhook_probes_retrieve
+      parameters:
+      - in: path
+        name: probe_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Webhook probe
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAPIEnvelope'
+          description: ''
+  /api/v1/webhook-probes/{probe_id}/callback:
+    post:
+      operationId: api_v1_webhook_probes_callback_create
+      parameters:
+      - in: header
+        name: X-MoldGuard-Callback-Token
+        schema:
+          type: string
+        description: Django在本次Webhook负载中发送的一次性回调令牌
+        required: true
+      - in: path
+        name: probe_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Webhook probe
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookProbeCallback'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WebhookProbeCallback'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WebhookProbeCallback'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAPIEnvelope'
+          description: ''
   /api/v1/work-orders:
     get:
       operationId: list_work_orders
@@ -1125,6 +1209,34 @@ components:
         * `FAIL` - FAIL
         * `NOT_APPLICABLE` - NOT_APPLICABLE
     SendEmail:
+      type: object
+      properties:
+        client_request_id:
+          type: string
+          maxLength: 120
+      required:
+      - client_request_id
+    WebhookProbeCallback:
+      type: object
+      properties:
+        client_request_id:
+          type: string
+          maxLength: 120
+        challenge:
+          type: string
+          maxLength: 64
+        platform_name:
+          type: string
+          default: competition-agent-platform
+          maxLength: 80
+        evidence:
+          type: string
+          default: ''
+          maxLength: 500
+      required:
+      - challenge
+      - client_request_id
+    WebhookProbeCreate:
       type: object
       properties:
         client_request_id:
