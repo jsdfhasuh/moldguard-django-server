@@ -391,39 +391,33 @@ class RequestEnvelopeV2Tests(unittest.TestCase):
     def test_scan_builds_all_molds_request_without_mold_ids(self):
         component = self._component()
         component.operation = component.SCAN
-        component.demo_run_id = _Message(text="开始检查")
+        component.demo_run_id = _Message(text="FLOW01-开始检查-当前时间是: 2026-08-14 15:30:45")
 
-        with patch.object(
-            component,
-            "_new_flow_run_id",
-            return_value="FLOW01-20260814-153045-123456",
-        ):
-            request = component.build_request().data
+        request = component.build_request().data
 
         self.assertEqual(request["schema_version"], "moldguard.request.v2")
         self.assertEqual(request["method"], "POST")
         self.assertTrue(request["url"].endswith("/api/v1/alerts/scan"))
         self.assertEqual(
             request["json_body"],
-            {"client_request_id": "FLOW01-20260814-153045-123456-scan"},
+            {"client_request_id": ("FLOW01-开始检查-当前时间是: 2026-08-14 15:30:45-scan")},
         )
         self.assertNotIn("mold_ids", {field.name for field in component.inputs})
         self.assertEqual(
             request["context"]["demo_run_id"],
-            "FLOW01-20260814-153045-123456",
+            "FLOW01-开始检查-当前时间是: 2026-08-14 15:30:45",
         )
-        self.assertEqual(request["context"]["start_command"], "开始检查")
         self.assertEqual(request["context"]["scan_scope"], "ALL_NON_DISABLED_MOLDS")
 
         start_field = next(field for field in component.inputs if field.name == "demo_run_id")
-        self.assertEqual(start_field.display_name, "启动指令")
+        self.assertEqual(start_field.display_name, "演示批次")
 
-    def test_scan_requires_nonempty_start_command(self):
+    def test_scan_requires_nonempty_demo_run_id(self):
         component = self._component()
         component.operation = component.SCAN
         component.demo_run_id = _Message(text=" ")
 
-        with self.assertRaisesRegex(ValueError, "启动指令"):
+        with self.assertRaisesRegex(ValueError, "演示批次"):
             component.build_request()
 
     def test_auto_assign_reads_work_order_from_success_envelope(self):
@@ -544,10 +538,11 @@ class SingleInputHttpV2Tests(unittest.IsolatedAsyncioTestCase):
                 "operation": "扫描预警",
                 "method": "POST",
                 "url": "https://moldguard.oracle.19970219.xyz/api/v1/alerts/scan",
-                "json_body": {"client_request_id": "FLOW01-20260814-153045-123456-scan"},
+                "json_body": {
+                    "client_request_id": ("FLOW01-开始检查-当前时间是: 2026-08-14 15:30:45-scan")
+                },
                 "context": {
-                    "demo_run_id": "FLOW01-20260814-153045-123456",
-                    "start_command": "开始检查",
+                    "demo_run_id": "FLOW01-开始检查-当前时间是: 2026-08-14 15:30:45",
                 },
             }
         )
@@ -560,7 +555,7 @@ class SingleInputHttpV2Tests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.data["status_code"], 200)
         self.assertEqual(
             response.data["context"]["demo_run_id"],
-            "FLOW01-20260814-153045-123456",
+            "FLOW01-开始检查-当前时间是: 2026-08-14 15:30:45",
         )
         self.assertEqual(fake_client.request_kwargs["json"], component.request.data["json_body"])
         self.assertNotIn("mold_ids", fake_client.request_kwargs["json"])
