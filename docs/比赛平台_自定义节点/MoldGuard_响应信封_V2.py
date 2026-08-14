@@ -124,24 +124,46 @@ class MoldGuardResponseEnvelopeV2(Component):
 
         if self.response_type == self.SCAN:
             results = self._nested(body, "data", "results", default=[])
-            first = (
-                results[0]
-                if isinstance(results, list) and results and isinstance(results[0], dict)
-                else {}
+            results = results if isinstance(results, list) else []
+            triggered_results = [
+                item
+                for item in results
+                if isinstance(item, dict)
+                and self._nonempty_text(item.get("status")) == "TRIGGERED"
+                and self._nonempty_text(item.get("code")) == "MAINTENANCE_TRIGGERED"
+                and self._nonempty_text(item.get("work_order_id"))
+                and self._nonempty_text(item.get("alert_id"))
+            ]
+            selected = triggered_results[0] if triggered_results else {}
+            scan_status = self._nonempty_text(selected.get("status"))
+            scan_code = self._nonempty_text(selected.get("code"))
+            work_order_id = self._nonempty_text(selected.get("work_order_id"))
+            alert_id = self._nonempty_text(selected.get("alert_id"))
+            mold_id = self._nonempty_text(selected.get("mold_id"))
+            scanned_count = self._nested(body, "data", "scanned_count", default=len(results))
+            triggered_count = self._nested(
+                body,
+                "data",
+                "triggered_count",
+                default=len(triggered_results),
             )
-            scan_status = self._nonempty_text(first.get("status"))
-            scan_code = self._nonempty_text(first.get("code"))
-            work_order_id = self._nonempty_text(first.get("work_order_id"))
-            alert_id = self._nonempty_text(first.get("alert_id"))
+            triggered_work_order_ids = [
+                self._nonempty_text(item.get("work_order_id")) for item in triggered_results
+            ]
             primary_name, primary = "work_order_id", work_order_id
             secondary_name, secondary = "alert_id", alert_id
             details = {
+                "scan_scope": context.get("scan_scope", ""),
+                "scanned_count": scanned_count,
+                "triggered_count": triggered_count,
+                "triggered_work_order_ids": triggered_work_order_ids,
+                "selected_mold_id": mold_id,
                 "status": scan_status,
                 "scan_code": scan_code,
                 "work_order_id": work_order_id,
                 "alert_id": alert_id,
-                "work_order_created": first.get("work_order_created"),
-                "message": first.get("message", ""),
+                "work_order_created": selected.get("work_order_created"),
+                "message": selected.get("message", ""),
             }
             success = (
                 common_ok
@@ -150,15 +172,14 @@ class MoldGuardResponseEnvelopeV2(Component):
                 and bool(work_order_id)
                 and bool(alert_id)
             )
-            if common_ok and scan_status and scan_status != "TRIGGERED":
-                reason = f"扫描完成，当前状态为 {scan_status}（{scan_code or '无业务码'}）。"
-            elif common_ok and scan_status == "TRIGGERED" and not work_order_id:
-                reason = "扫描已触发保养，但响应缺少 work_order_id。"
+            if common_ok and not triggered_results:
+                reason = f"全量扫描完成（共 {scanned_count} 个模具），未发现到期保养工单。"
             else:
                 reason = (
-                    "扫描已触发并返回工单。"
+                    f"全量扫描完成，共触发 {triggered_count} 个保养工单；"
+                    f"当前继续处理 {work_order_id}。"
                     if success
-                    else "扫描响应未满足 HTTP 200、SUCCESS、TRIGGERED 和工单字段要求。"
+                    else "扫描响应未满足 HTTP 200、SUCCESS 和有效到期工单要求。"
                 )
         elif self.response_type == self.AUTO_ASSIGN:
             employee_id = self._nonempty_text(self._nested(body, "data", "assignee_id"))

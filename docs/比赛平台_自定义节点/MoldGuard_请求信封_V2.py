@@ -27,7 +27,6 @@ class MoldGuardRequestEnvelopeV2(Component):
     _DYNAMIC_FIELDS = {
         "upstream",
         "demo_run_id",
-        "mold_ids",
         "source_data",
         "trigger_data",
         "work_order_id",
@@ -36,7 +35,7 @@ class MoldGuardRequestEnvelopeV2(Component):
     }
 
     _VISIBLE_FIELDS = {
-        SCAN: {"demo_run_id", "mold_ids"},
+        SCAN: {"demo_run_id"},
         AUTO_ASSIGN: {"upstream"},
         KNOWLEDGE_CONTEXT: {"upstream"},
         SEND_EMAIL: {"upstream"},
@@ -83,13 +82,6 @@ class MoldGuardRequestEnvelopeV2(Component):
             name="demo_run_id",
             display_name="演示批次",
             info="扫描入口的稳定批次 ID。",
-            show=True,
-        ),
-        MessageTextInput(
-            name="mold_ids",
-            display_name="模具 ID",
-            value="MOLD-TEST-001",
-            info="一个 ID、逗号分隔的多个 ID，或 JSON 字符串数组。",
             show=True,
         ),
         HandleInput(
@@ -174,23 +166,6 @@ class MoldGuardRequestEnvelopeV2(Component):
                 raise ValueError(f"定时器数据中不存在字段路径：{path}")
             current = current[key]
         return current
-
-    @classmethod
-    def _parse_mold_ids(cls, value: Any) -> list[str]:
-        raw = cls._required_text(value, "模具 ID")
-        if raw.startswith("["):
-            try:
-                parsed = json.loads(raw)
-            except json.JSONDecodeError as exc:
-                raise ValueError("模具 ID 的 JSON 数组格式无效。") from exc
-            if not isinstance(parsed, list):
-                raise ValueError("模具 ID 必须是字符串或 JSON 数组。")
-            values = [str(item).strip() for item in parsed if str(item).strip()]
-        else:
-            values = [part.strip() for part in re.split(r"[,\n]", raw) if part.strip()]
-        if not values:
-            raise ValueError("至少需要一个模具 ID。")
-        return values
 
     def _api_url(self, path: str) -> str:
         base = self._required_text(self.base_url, "后端基础地址").rstrip("/")
@@ -290,16 +265,15 @@ class MoldGuardRequestEnvelopeV2(Component):
 
         if operation == self.SCAN:
             demo_run_id = self._required_text(self.demo_run_id, "演示批次")
-            mold_ids = self._parse_mold_ids(self.mold_ids)
             result = self._envelope(
                 operation,
                 "POST",
                 self._api_url("/alerts/scan"),
+                {"client_request_id": f"{demo_run_id}-scan"},
                 {
-                    "mold_ids": mold_ids,
-                    "client_request_id": f"{demo_run_id}-scan",
+                    "demo_run_id": demo_run_id,
+                    "scan_scope": "ALL_NON_DISABLED_MOLDS",
                 },
-                {"demo_run_id": demo_run_id, "mold_ids": mold_ids},
             )
         elif operation == self.AUTO_ASSIGN:
             _, context = self._upstream_context()

@@ -17,6 +17,7 @@
 
 - 平台正式知识库名称为 `模具保养知识库`；`MOLDGUARD-KB-1.2` 是目录版本，不是知识库显示名称。
 - V2 请求信封只生成单个 `Data`，内含 `method/url/json_body/context`，不发送网络请求。
+- V2 `扫描预警` 不接收或发送 `mold_ids`；请求体只带 `client_request_id`，由 Django 扫描全部非禁用模具。
 - V2 单输入 HTTP 只执行信封中的 HTTP 请求，并原样传递 `context`；它不执行派工、知识或邮件业务规则。
 - V2 响应信封只解析 HTTP Data，输出一个带业务数据的 `Message`；成功/失败由平台原生“如果-否则”节点路由。
 - 知识库检索由平台“我的知识库”节点执行；Django 不访问平台知识库。
@@ -42,7 +43,7 @@ decision = NEEDS_MORE_INFO
 
 | 响应类型 | 主变量 | 次变量 | 成功条件 |
 |---|---|---|---|
-| 扫描预警响应 | `work_order_id` | `alert_id` | `200 + SUCCESS + TRIGGERED + MAINTENANCE_TRIGGERED + 非空工单/预警ID` |
+| 扫描预警响应 | `work_order_id` | `alert_id` | `200 + SUCCESS + results[] 中存在 TRIGGERED + MAINTENANCE_TRIGGERED + 非空工单/预警ID` |
 | 自动派工响应 | `employee_id`（读取 `assignee_id`） | `work_order_id` | `200 + SUCCESS + 非空 assignee_id` |
 | 知识上下文响应 | `search_query` | `knowledge_profile_code` | `200 + SUCCESS + mold_type + profile_code` |
 | 知识快照响应 | `code` | 空 | `200 + SUCCESS` |

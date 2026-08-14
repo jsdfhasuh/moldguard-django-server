@@ -374,19 +374,23 @@ class RequestEnvelopeV2Tests(unittest.TestCase):
         component.base_url = "https://moldguard.oracle.19970219.xyz/"
         return component
 
-    def test_scan_builds_single_request_envelope(self):
+    def test_scan_builds_all_molds_request_without_mold_ids(self):
         component = self._component()
         component.operation = component.SCAN
         component.demo_run_id = "DEMO-001"
-        component.mold_ids = '["MOLD-1", "MOLD-2"]'
 
         request = component.build_request().data
 
         self.assertEqual(request["schema_version"], "moldguard.request.v2")
         self.assertEqual(request["method"], "POST")
         self.assertTrue(request["url"].endswith("/api/v1/alerts/scan"))
-        self.assertEqual(request["json_body"]["mold_ids"], ["MOLD-1", "MOLD-2"])
+        self.assertEqual(
+            request["json_body"],
+            {"client_request_id": "DEMO-001-scan"},
+        )
+        self.assertNotIn("mold_ids", {field.name for field in component.inputs})
         self.assertEqual(request["context"]["demo_run_id"], "DEMO-001")
+        self.assertEqual(request["context"]["scan_scope"], "ALL_NON_DISABLED_MOLDS")
 
     def test_auto_assign_reads_work_order_from_success_envelope(self):
         component = self._component()
@@ -522,7 +526,7 @@ class SingleInputHttpV2Tests(unittest.IsolatedAsyncioTestCase):
 
 
 class ResponseEnvelopeV2Tests(unittest.TestCase):
-    def test_scan_success_merges_work_order_into_context(self):
+    def test_scan_success_selects_triggered_work_order_from_all_results(self):
         component = RESPONSE_V2.MoldGuardResponseEnvelopeV2()
         component.response_type = component.SCAN
         component.response = _Data(
@@ -532,18 +536,29 @@ class ResponseEnvelopeV2Tests(unittest.TestCase):
                 "body": {
                     "code": "SUCCESS",
                     "data": {
+                        "scanned_count": 2,
+                        "triggered_count": 1,
                         "results": [
                             {
+                                "mold_id": "MOLD-1",
+                                "status": "NOT_DUE",
+                                "code": "MAINTENANCE_NOT_DUE",
+                            },
+                            {
+                                "mold_id": "MOLD-2",
                                 "status": "TRIGGERED",
                                 "code": "MAINTENANCE_TRIGGERED",
                                 "alert_id": "ALT-1",
                                 "work_order_id": "WO-1",
                                 "work_order_created": True,
-                            }
-                        ]
+                            },
+                        ],
                     },
                 },
-                "context": {"demo_run_id": "DEMO-001"},
+                "context": {
+                    "demo_run_id": "DEMO-001",
+                    "scan_scope": "ALL_NON_DISABLED_MOLDS",
+                },
             }
         )
 
@@ -553,6 +568,10 @@ class ResponseEnvelopeV2Tests(unittest.TestCase):
         self.assertTrue(result.data["success"])
         self.assertEqual(result.data["context"]["work_order_id"], "WO-1")
         self.assertEqual(result.data["context"]["alert_id"], "ALT-1")
+        self.assertEqual(result.data["context"]["selected_mold_id"], "MOLD-2")
+        self.assertEqual(result.data["context"]["scanned_count"], 2)
+        self.assertEqual(result.data["context"]["triggered_count"], 1)
+        self.assertEqual(result.data["context"]["triggered_work_order_ids"], ["WO-1"])
 
     def test_scan_not_due_emits_failure_token(self):
         component = RESPONSE_V2.MoldGuardResponseEnvelopeV2()

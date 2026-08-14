@@ -1,6 +1,6 @@
 import pytest
 
-from apps.molds.models import Alert
+from apps.molds.models import Alert, Mold
 from apps.workorders.models import WorkOrder
 
 
@@ -20,6 +20,29 @@ def test_scan_creates_one_merged_alert_and_work_order(api_client, seeded_demo):
     assert result["work_order_created"] is True
     assert Alert.objects.count() == 1
     assert WorkOrder.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_scan_without_mold_ids_scans_all_non_disabled_molds(api_client, seeded_demo):
+    disabled_mold_id = "DEMO-INJ-050K"
+    Mold.objects.filter(pk=disabled_mold_id).update(status=Mold.Status.DISABLED)
+    expected_ids = list(
+        Mold.objects.exclude(status=Mold.Status.DISABLED)
+        .order_by("mold_id")
+        .values_list("mold_id", flat=True)
+    )
+
+    response = api_client.post(
+        "/api/v1/alerts/scan",
+        {"client_request_id": "scan-all-non-disabled"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    data = response.data["data"]
+    assert data["scanned_count"] == len(expected_ids)
+    assert [item["mold_id"] for item in data["results"]] == expected_ids
+    assert disabled_mold_id not in expected_ids
 
 
 @pytest.mark.django_db
