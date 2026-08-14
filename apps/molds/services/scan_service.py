@@ -104,17 +104,27 @@ def scan_molds(*, mold_ids=None, now=None):
         alert, work_order, alert_created, work_order_created = _create_or_reuse_formal_work(
             mold, trigger, now
         )
-        results.append(
-            {
-                **trigger,
-                "alert_id": alert.alert_id,
-                "alert_status": alert.status,
-                "work_order_id": work_order.work_order_id,
-                "work_order_status": work_order.status,
-                "alert_created": alert_created,
-                "work_order_created": work_order_created,
-            }
-        )
+        result = {
+            **trigger,
+            "alert_id": alert.alert_id,
+            "alert_status": alert.status,
+            "work_order_id": work_order.work_order_id,
+            "work_order_status": work_order.status,
+            "alert_created": alert_created,
+            "work_order_created": work_order_created,
+        }
+        if work_order.status != WorkOrder.Status.PENDING_ASSIGNMENT:
+            result.update(
+                {
+                    "status": "SKIPPED",
+                    "code": "MAINTENANCE_WORK_ORDER_NOT_PENDING_ASSIGNMENT",
+                    "message": (
+                        f"保养工单 {work_order.work_order_id} 当前状态为 {work_order.status}，"
+                        "本次扫描不重复派工"
+                    ),
+                }
+            )
+        results.append(result)
     return {
         "scanned_count": len(results),
         "triggered_count": sum(item["status"] == "TRIGGERED" for item in results),

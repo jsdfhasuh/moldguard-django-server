@@ -67,6 +67,49 @@ def test_repeat_scan_with_different_id_reuses_same_cycle_objects(api_client, see
 
 
 @pytest.mark.django_db
+def test_full_scan_skips_assigned_work_order_and_exposes_next_pending_one(api_client, seeded_demo):
+    first = api_client.post(
+        "/api/v1/alerts/scan",
+        {"client_request_id": "scan-sequential-dispatch-1"},
+        format="json",
+    )
+    assert first.status_code == 200
+    first_triggered = [
+        item
+        for item in first.data["data"]["results"]
+        if item["status"] == "TRIGGERED" and item["code"] == "MAINTENANCE_TRIGGERED"
+    ]
+    assert len(first_triggered) >= 2
+
+    assigned_work_order_id = first_triggered[0]["work_order_id"]
+    WorkOrder.objects.filter(pk=assigned_work_order_id).update(status=WorkOrder.Status.ASSIGNED)
+
+    second = api_client.post(
+        "/api/v1/alerts/scan",
+        {"client_request_id": "scan-sequential-dispatch-2"},
+        format="json",
+    )
+    assert second.status_code == 200
+    second_results = second.data["data"]["results"]
+    assigned_result = next(
+        item for item in second_results if item.get("work_order_id") == assigned_work_order_id
+    )
+    assert assigned_result["status"] == "SKIPPED"
+    assert assigned_result["code"] == "MAINTENANCE_WORK_ORDER_NOT_PENDING_ASSIGNMENT"
+    assert assigned_result["work_order_status"] == WorkOrder.Status.ASSIGNED
+
+    remaining = [
+        item
+        for item in second_results
+        if item["status"] == "TRIGGERED" and item["code"] == "MAINTENANCE_TRIGGERED"
+    ]
+    assert remaining
+    assert remaining[0]["work_order_id"] != assigned_work_order_id
+    assert remaining[0]["work_order_status"] == WorkOrder.Status.PENDING_ASSIGNMENT
+    assert second.data["data"]["triggered_count"] == len(remaining)
+
+
+@pytest.mark.django_db
 def test_scan_continues_after_field_error_and_stop_result(api_client, seeded_demo):
     response = api_client.post(
         "/api/v1/alerts/scan",
