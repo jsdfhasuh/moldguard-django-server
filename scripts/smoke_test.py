@@ -30,8 +30,9 @@ class HiddenInputParser(HTMLParser):
 
 
 class SmokeClient:
-    def __init__(self, base_url):
+    def __init__(self, base_url, *, report_base_url=None):
         self.base_url = base_url.rstrip("/")
+        self.report_base_url = (report_base_url or base_url).rstrip("/")
         self.cookies = http.cookiejar.CookieJar()
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cookies))
 
@@ -41,8 +42,9 @@ class SmokeClient:
             "X-Request-ID": f"smoke-{uuid.uuid4().hex}",
             **(headers or {}),
         }
+        request_url = path if urllib.parse.urlsplit(path).scheme else f"{self.base_url}{path}"
         request = urllib.request.Request(
-            f"{self.base_url}{path}",
+            request_url,
             data=body,
             headers=request_headers,
             method=method,
@@ -97,14 +99,16 @@ class SmokeClient:
         return body
 
     def html_report_normal(self, work_order_id, report_url):
-        parsed_base = urllib.parse.urlsplit(self.base_url)
+        parsed_base = urllib.parse.urlsplit(self.report_base_url)
         parsed_report = urllib.parse.urlsplit(report_url)
         if (parsed_report.scheme, parsed_report.netloc) != (parsed_base.scheme, parsed_base.netloc):
-            raise SmokeFailure("send-email returned a report_url outside the selected base URL")
+            raise SmokeFailure(
+                "send-email returned a report_url outside the expected report origin"
+            )
         path = parsed_report.path
         if path != f"/report/{work_order_id}" or parsed_report.query or parsed_report.fragment:
             raise SmokeFailure("send-email returned an unexpected report_url")
-        page = self.html_get(path)
+        page = self.html_get(report_url)
         parser = HiddenInputParser()
         parser.feed(page)
         required = {
@@ -133,12 +137,12 @@ class SmokeClient:
         body = urllib.parse.urlencode(form).encode()
         status, content_type, result_page = self._request(
             "POST",
-            path,
+            report_url,
             body=body,
             headers={
                 "Content-Type": "application/x-www-form-urlencoded",
                 "X-CSRFToken": parser.inputs["csrfmiddlewaretoken"],
-                "Referer": f"{self.base_url}{path}",
+                "Referer": report_url,
             },
         )
         if status != 200 or content_type != "text/html" or "报工已完成" not in result_page:
@@ -400,6 +404,21 @@ def reset_demo(compose_env_file):
     completed = subprocess.run(command, check=False)
     if completed.returncode != 0:
         raise SmokeFailure("competition DEMO reset failed")
+    verify_command = [
+        "docker",
+        "compose",
+        "--env-file",
+        compose_env_file,
+        "exec",
+        "-T",
+        "api",
+        "python",
+        "manage.py",
+        "verify_demo_data",
+    ]
+    completed = subprocess.run(verify_command, check=False)
+    if completed.returncode != 0:
+        raise SmokeFailure("competition DEMO verification failed after reset")
 
 
 def main():
@@ -413,14 +432,18 @@ def main():
     parser.add_argument(
         "--reset-demo",
         action="store_true",
-        help="Reset only the selected competition Compose project's DEMO database first.",
+        help="Reset the selected competition project's dedicated DEMO database first.",
     )
     parser.add_argument("--compose-env-file", default=".env.competition")
+    parser.add_argument(
+        "--report-base-url",
+        help="Expected public origin for report_url; defaults to --base-url.",
+    )
     args = parser.parse_args()
     try:
         if args.reset_demo:
             reset_demo(args.compose_env_file)
-        client = SmokeClient(args.base_url)
+        client = SmokeClient(args.base_url, report_base_url=args.report_base_url)
         run_id = uuid.uuid4().hex[:16]
         run_health(client)
         if args.workflow in {"normal", "all"}:
