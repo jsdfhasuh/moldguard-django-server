@@ -127,6 +127,15 @@ def save_knowledge_package(work_order_id, payload, *, client_request_id):
 
 
 def knowledge_context(work_order):
+    mold_type_label = work_order.mold.get_mold_type_display()
+    query_keywords = [
+        f"{mold_type_label}模具保养步骤",
+        f"{mold_type_label}模具点检项目",
+    ]
+    if work_order.mold.mold_category:
+        query_keywords.append(work_order.mold.get_mold_category_display())
+    query_keywords.append("清洁 检查 测量 润滑 紧固 调整 复核 记录")
+
     return {
         "work_order_id": work_order.work_order_id,
         "mold_id": work_order.mold_id,
@@ -137,13 +146,8 @@ def knowledge_context(work_order):
         "work_order_type": work_order.work_order_type,
         "knowledge_profile_code": work_order.mold.knowledge_profile_code,
         "knowledge_snapshot_version": settings.MOLDGUARD_KNOWLEDGE_VERSION,
-        "query_keywords": [
-            work_order.mold.mold_type,
-            work_order.mold.mold_category,
-            work_order.primary_rule_id,
-            work_order.work_order_type,
-        ],
-        "required_knowledge_types": ["MAINTENANCE_STEPS", "INSPECTION_ITEMS", "SAFETY"],
+        "query_keywords": query_keywords,
+        "required_knowledge_types": ["MAINTENANCE_STEPS", "INSPECTION_ITEMS"],
     }
 
 

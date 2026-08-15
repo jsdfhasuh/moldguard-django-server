@@ -37,7 +37,19 @@ def test_knowledge_context_save_and_email_context_share_hash(
     work_order_id, _ = scan_work_order(api_client, "DEMO-INJ-050K", "knowledge-email")
     assign_work_order(api_client, work_order_id, "DEMO-EMP-INJ", "knowledge-email")
     context = api_client.get(f"/api/v1/work-orders/{work_order_id}/knowledge-context")
-    assert context.data["data"]["knowledge_snapshot_version"] == "MOLDGUARD-KB-1.2"
+    context_data = context.data["data"]
+    assert context_data["knowledge_snapshot_version"] == "MOLDGUARD-KB-1.2"
+    assert context_data["query_keywords"] == [
+        "注塑模具保养步骤",
+        "注塑模具点检项目",
+        "清洁 检查 测量 润滑 紧固 调整 复核 记录",
+    ]
+    assert context_data["required_knowledge_types"] == [
+        "MAINTENANCE_STEPS",
+        "INSPECTION_ITEMS",
+    ]
+    assert context_data["primary_rule_id"] not in context_data["query_keywords"]
+    assert context_data["work_order_type"] not in context_data["query_keywords"]
     saved = save_knowledge(api_client, work_order_id, knowledge_payload, "knowledge-email")
     email = api_client.get(f"/api/v1/work-orders/{work_order_id}/email-context")
     assert email.status_code == 200
