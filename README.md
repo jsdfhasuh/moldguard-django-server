@@ -132,6 +132,7 @@ GET  /api/v1/webhook-probes/{probe_id}
 - Competition 环境示例：`.env.competition.example`
 - Compose：`compose.yaml`
 - 部署脚本：`scripts/deploy_competition.sh`
+- 演示数据重置：`scripts/reset_competition_demo.sh`
 - MariaDB 备份：`scripts/backup_mariadb.sh`
 - Nginx 切换模板：`deploy/nginx/moldguard-competition.conf`
 - 回退脚本：`scripts/rollback_competition.sh`

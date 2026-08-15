@@ -83,7 +83,29 @@ MariaDB 宿主映射由 `MARIADB_HOST_BIND` 和 `MARIADB_HOST_PORT` 控制，示
 `MOLDGUARD_REPORT_REVIEW_WEBHOOK_URL`。当前平台未验证视觉输入时，流程只允许回写
 `NEEDS_MORE_INFO`，不得把安全门禁结果描述为已完成 AI 图片审核。
 
-## 3. 切换前备份
+## 3. 手工重置 competition 演示数据
+
+确认平台上一次流程已经结束后，在 Oracle 的 competition 仓库执行：
+
+```bash
+cd /docker_volume/moldguard-competition-server-v1
+scripts/reset_competition_demo.sh
+```
+
+脚本固定要求自身位于 `/docker_volume/moldguard-competition-server-v1`，并固定使用该目录的
+`compose.yaml`、`.env.competition`、Compose 项目 `moldguard-competition` 和本机 `18081`。
+它始终要求交互输入 `RESET`，不提供跳过确认的参数。脚本会删除 competition 数据库中的
+工单、告警、保养记录、关联报工证据、员工、模具和幂等记录，再恢复标准的 10 个演示模具
+与 4 名演示员工。Webhook 探测记录不属于演示业务重置范围，会保留。
+
+脚本随后执行 `verify_demo_data`，立即检查一次业务记录计数，等待 20 秒后再检查一次，并
+请求本机 `18081` health。若检测到新工单或幂等记录，脚本会失败并提示等待流程结束后
+重试。两次计数是短时检测，不会锁定 API；脚本成功后重新运行平台流程仍会正常写入数据。
+
+该脚本不会部署代码、构建或重启容器，不运行完整 smoke，也不会发送邮件。不要对旧栈
+`/docker_volume/moldguard-django-server` 执行此操作。
+
+## 4. 切换前备份
 
 旧数据库在旧仓库执行：
 
@@ -107,7 +129,7 @@ cp --preserve=mode,ownership,timestamps \
   /etc/nginx/conf.d/out/moldguard.conf.before-competition
 ```
 
-## 4. Nginx 切换
+## 5. Nginx 切换
 
 只有新栈测试和备份全部通过后才执行：
 
@@ -137,7 +159,7 @@ python3 scripts/smoke_test.py \
   --compose-env-file .env.competition
 ```
 
-## 5. 回退
+## 6. 回退
 
 任一步失败立即执行：
 
