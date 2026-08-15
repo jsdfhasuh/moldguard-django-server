@@ -141,6 +141,7 @@ HTTP_V2 = _load_module("moldguard_single_input_http_v2", "MoldGuard_单输入HTT
 RESPONSE_V2 = _load_module("moldguard_response_envelope_v2", "MoldGuard_响应信封_V2.py")
 SNAPSHOT_V2 = _load_module("moldguard_snapshot_envelope_v2", "MoldGuard_知识快照信封_V2.py")
 SNAPSHOT_V3 = _load_module("moldguard_snapshot_envelope_v3", "MoldGuard_知识快照信封_V3.py")
+SNAPSHOT_V4 = _load_module("moldguard_snapshot_envelope_v4", "MoldGuard_知识快照信封_V4.py")
 MULTIMODAL = _load_module("moldguard_doubao_multimodal_v1", "MoldGuard_豆包多模态_V1.py")
 
 
@@ -166,6 +167,7 @@ class ComponentOutputTests(unittest.TestCase):
             RESPONSE_V2.MoldGuardResponseEnvelopeV2,
             SNAPSHOT_V2.MoldGuardKnowledgeSnapshotEnvelopeV2,
             SNAPSHOT_V3.MoldGuardKnowledgeSnapshotEnvelopeV3,
+            SNAPSHOT_V4.MoldGuardKnowledgeSnapshotEnvelopeV4,
             MULTIMODAL.MoldGuardDoubaoMultimodalV1,
         )
 
@@ -183,6 +185,9 @@ class ComponentOutputTests(unittest.TestCase):
             ),
             SNAPSHOT_V3.MoldGuardKnowledgeSnapshotEnvelopeV3: (
                 "MoldGuard 知识快照信封 V3（单输出）"
+            ),
+            SNAPSHOT_V4.MoldGuardKnowledgeSnapshotEnvelopeV4: (
+                "MoldGuard 知识快照信封 V4（单输出）"
             ),
             MULTIMODAL.MoldGuardDoubaoMultimodalV1: ("MoldGuard 豆包多模态 V1（批量图片）"),
         }
@@ -1099,6 +1104,123 @@ class KnowledgeSnapshotEnvelopeV3Tests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "缺少字段：source"):
             component.build_request()
+
+
+class KnowledgeSnapshotEnvelopeV4Tests(KnowledgeSnapshotEnvelopeV3Tests):
+    def _component(self):
+        component = SNAPSHOT_V4.MoldGuardKnowledgeSnapshotEnvelopeV4()
+        component.upstream = _Message(
+            data={
+                "success": True,
+                "context": {
+                    "demo_run_id": "DEMO-001",
+                    "work_order_id": "WO-1",
+                    "employee_id": "EMP-1",
+                    "search_query": "INJECTION 型腔",
+                },
+            }
+        )
+        component.catalog_version = "MOLDGUARD-KB-1.2"
+        component.base_url = "https://moldguard.oracle.19970219.xyz"
+        component.fallback_items_json = ""
+        return component
+
+    def test_prefers_valid_message_text_over_runtime_metadata(self):
+        component = self._component()
+        payload = json.dumps({"results": [self.EXTRACTED_ITEM]}, ensure_ascii=False)
+        component.knowledge_results = _Message(
+            text=payload,
+            data={"sender": "Machine", "session_id": "SESSION-1"},
+        )
+
+        request = component.build_request().data
+
+        self.assertEqual(
+            request["json_body"]["items"][0]["title"],
+            self.EXTRACTED_ITEM["title"],
+        )
+
+    def test_accepts_json_nested_in_message_data_text(self):
+        component = self._component()
+        payload = json.dumps({"results": [self.EXTRACTED_ITEM]}, ensure_ascii=False)
+        component.knowledge_results = _Message(data={"text": payload, "sender": "Machine"})
+
+        request = component.build_request().data
+
+        self.assertEqual(
+            request["json_body"]["items"][0]["source"],
+            "模具保养知识库",
+        )
+
+    def test_message_text_takes_priority_over_nested_data_text(self):
+        component = self._component()
+        message_item = {**self.EXTRACTED_ITEM, "title": "Message 文本优先"}
+        nested_item = {**self.EXTRACTED_ITEM, "title": "data.text 不应覆盖"}
+        component.knowledge_results = _Message(
+            text=json.dumps({"results": [message_item]}, ensure_ascii=False),
+            data={
+                "text": json.dumps({"results": [nested_item]}, ensure_ascii=False),
+                "sender": "Machine",
+            },
+        )
+
+        request = component.build_request().data
+
+        self.assertEqual(request["json_body"]["items"][0]["title"], "Message 文本优先")
+
+    def test_accepts_json_nested_in_data_text(self):
+        component = self._component()
+        payload = json.dumps({"results": [self.EXTRACTED_ITEM]}, ensure_ascii=False)
+        component.knowledge_results = _Data(data={"text": payload, "trace_id": "TRACE-1"})
+
+        request = component.build_request().data
+
+        self.assertEqual(
+            request["json_body"]["items"][0]["content"],
+            self.EXTRACTED_ITEM["content"],
+        )
+
+    def test_structured_message_data_takes_priority_over_text(self):
+        component = self._component()
+        structured_item = {**self.EXTRACTED_ITEM, "title": "结构化数据优先"}
+        component.knowledge_results = _Message(
+            text=json.dumps({"results": [self.EXTRACTED_ITEM]}, ensure_ascii=False),
+            data={"results": [structured_item]},
+        )
+
+        request = component.build_request().data
+
+        self.assertEqual(
+            request["json_body"]["items"][0]["title"],
+            "结构化数据优先",
+        )
+
+    def test_failure_reports_safe_input_diagnostic_without_values(self):
+        component = self._component()
+        component.knowledge_results = _Message(
+            text="不是 JSON",
+            data={
+                "text": "仍然不是 JSON",
+                "authorization": "Bearer VERY-SECRET-TOKEN",
+                "email": "private@example.com",
+                "trace_id": "TRACE-SECRET-123",
+                "embedded-secret@example.com": "value",
+            },
+        )
+
+        with self.assertRaises(ValueError) as raised:
+            component.build_request()
+
+        message = str(raised.exception)
+        self.assertIn("输入诊断[type=_Message", message)
+        self.assertIn("text_json=false", message)
+        self.assertIn("data_keys=", message)
+        self.assertIn("data_text_json=false", message)
+        self.assertNotIn("VERY-SECRET-TOKEN", message)
+        self.assertNotIn("private@example.com", message)
+        self.assertNotIn("TRACE-SECRET-123", message)
+        self.assertNotIn("embedded-secret@example.com", message)
+        self.assertIn("<redacted-key:", message)
 
 
 if __name__ == "__main__":

@@ -5,17 +5,17 @@
 1. `MoldGuard_请求信封_V2.py`
 2. `MoldGuard_单输入HTTP_V2.py`
 3. `MoldGuard_响应信封_V2.py`
-4. `MoldGuard_知识快照信封_V3.py`
+4. `MoldGuard_知识快照信封_V4.py`
 
-画布显示名以当前注册版本为准：请求信封、响应信封和知识快照信封显示为 `V3（单输出）`，单输入 HTTP 仍显示为 `V2`。V3 是平台组件身份版本；HTTP Data 内的 `moldguard.request.v2` / `moldguard.response.v2` 是后端信封协议版本，两者不要求相同。
+画布显示名以当前注册版本为准：请求信封和响应信封显示为 `V3（单输出）`，知识快照信封显示为 `V4（单输出）`，单输入 HTTP 仍显示为 `V2`。V3/V4 是平台组件身份版本；HTTP Data 内的 `moldguard.request.v2` / `moldguard.response.v2` 是后端信封协议版本，两者不要求相同。
 
-原来的 `MoldGuard_知识快照信封_V2.py` 保留用于已搭建流程，只接受完整七字段知识项。流程 01 必须新注册 V3，不要用 V3 代码覆盖平台中的 V2 组件。
+原来的 `MoldGuard_知识快照信封_V2.py` 和 `MoldGuard_知识快照信封_V3.py` 保留用于已搭建流程。流程 01 必须新注册 V4，不要用 V4 代码覆盖平台中的 V2/V3 组件。
 
 流程 02 只需要额外注册：
 
 1. `MoldGuard_豆包多模态_V1.py`
 
-流程 02 的 GET、POST、条件路由和中文结果展示全部使用平台原生节点，不连接请求信封 V3、响应信封 V3 或单输入 HTTP V2，也不需要创建 V4。
+流程 02 的 GET、POST、条件路由和中文结果展示全部使用平台原生节点，不连接请求信封 V3、响应信封 V3、知识快照信封 V4 或单输入 HTTP V2；知识快照 V4 只供流程 01 使用。
 
 以下三个旧版组件为已存在的流程 04 和回退保留，不再用于新建的流程 01/02：
 
@@ -33,7 +33,7 @@
 - V2 单输入 HTTP 只执行信封中的 HTTP 请求，并原样传递 `context`；它不执行派工、知识或邮件业务规则。
 - 响应信封 V3 只解析 HTTP Data，输出一个带业务数据的 `Message`；成功/失败由平台原生“如果-否则”节点路由。
 - 知识库检索由平台“我的知识库”节点执行；Django 不访问平台知识库。
-- 流程 01 使用“解析器 + 提示词 + 大模型”把真实检索内容整理成只含 `title/content/source` 的严格 JSON；V3 知识快照信封直接接收大模型 `Message`，自动补齐内部字段并生成单个知识快照请求 `Data`。
+- 流程 01 使用“解析器 + 提示词 + 大模型”把真实检索内容整理成只含 `title/content/source` 的严格 JSON；V4 知识快照信封直接接收大模型 `Message`，自动解开运行元数据/`text` 包装、补齐内部字段并生成单个知识快照请求 `Data`。
 - Django 校验、保存并哈希知识包，随后自行渲染和发送邮件。
 - 员工只在 Django 邮件链接页面提交文字和图片。平台没有员工报工页面，也不向 Django 提交远程图片 URL。
 - Django 保存报工材料后通过 Webhook 唤醒平台；平台只读取审核上下文并回写审核建议。
@@ -151,8 +151,10 @@ Django Webhook 只含 `submission_id`、`work_order_id` 和 `review_context_url`
 }
 ```
 
-`MoldGuard 知识快照信封 V3（单输出）`兼容上述 JSON `Message`，也兼容相同结构的 `Data` 或单个
-`{"title": ..., "content": ..., "source": ...}` 对象。平台知识库和大模型都不需要生成 `knowledge_id`。该组件现有 `knowledge_results` 端口在画布上仍显示“模块化提取结果”，流程 01 直接把大模型 `response` 连到这个历史名称端口，不修改组件源码或显示名。
+`MoldGuard 知识快照信封 V4（单输出）`兼容上述 JSON `Message`、相同结构的 `Data`、单个
+`{"title": ..., "content": ..., "source": ...}` 对象，以及位于 `text`、`page_content`、`data`、`message`、`output`、`result`、`response` 包装键内（最多 4 层）的 JSON。结构化 `Message.data.results` 或三字段对象优先；否则优先读取 `Message.text`，最后读取 `Message.data` 内的受支持包装。平台知识库和大模型都不需要生成 `knowledge_id`。该组件的 `knowledge_results` 端口在画布上仍显示“模块化提取结果”，流程 01 直接把大模型 `response` 连到这个历史名称端口。
+
+V4 解析失败时，异常会附加安全输入诊断，包括输入类型、文本长度、文本 JSON 形状、`data` 类型、受控顶层键名、`results`/顶层列表长度和三字段存在情况。诊断不打印完整知识正文或任何输入值；未知键名仅显示摘要，因此不会暴露邮箱、令牌、Cookie、Authorization 或会话标识的值。
 
 节点会在请求 Django 前确定性补齐内部契约字段：
 
