@@ -1,6 +1,8 @@
+import base64
 import importlib.util
 import json
 import sys
+import tempfile
 import types
 import unittest
 from pathlib import Path
@@ -37,6 +39,29 @@ class _Message:
     def __init__(self, text="", content="", data=None, **kwargs):
         self.text = text or content
         self.data = data or {}
+        self.files = kwargs.get("files", [])
+
+
+class _HumanMessage:
+    def __init__(self, content):
+        self.content = content
+
+
+class _ProviderComponent:
+    display_name = "豆包AI"
+    last_kwargs = None
+    model = None
+
+    @classmethod
+    def set(cls, **kwargs):
+        instance = cls()
+        cls.last_kwargs = kwargs
+        instance.kwargs = kwargs
+        instance.model = cls.model
+        return instance
+
+    def build_model(self):
+        return getattr(self, "model", None)
 
 
 def _install_langflow_stubs():
@@ -45,6 +70,13 @@ def _install_langflow_stubs():
     io = types.ModuleType("langflow.io")
     schema = types.ModuleType("langflow.schema")
     schema_message = types.ModuleType("langflow.schema.message")
+    langflow_base = types.ModuleType("langflow.base")
+    langflow_base_models = types.ModuleType("langflow.base.models")
+    model_constants = types.ModuleType("langflow.base.models.model_input_constants")
+    langflow_helpers = types.ModuleType("langflow.helpers")
+    global_api_key = types.ModuleType("langflow.helpers.global_api_key")
+    langchain_core = types.ModuleType("langchain_core")
+    langchain_messages = types.ModuleType("langchain_core.messages")
 
     custom.Component = _Component
     for name in (
@@ -61,6 +93,18 @@ def _install_langflow_stubs():
     schema.Data = _Data
     schema.Message = _Message
     schema_message.Message = _Message
+    model_constants.MODEL_PROVIDERS_DICT = {
+        "豆包AI": {
+            "component_class": _ProviderComponent,
+            "inputs": [
+                _Field(name="model_name", value="doubao-test"),
+                _Field(name="api_key", value=""),
+            ],
+            "prefix": "",
+        }
+    }
+    global_api_key.get_global_api_key_sync = lambda _name: ""
+    langchain_messages.HumanMessage = _HumanMessage
 
     sys.modules.update(
         {
@@ -69,6 +113,13 @@ def _install_langflow_stubs():
             "langflow.io": io,
             "langflow.schema": schema,
             "langflow.schema.message": schema_message,
+            "langflow.base": langflow_base,
+            "langflow.base.models": langflow_base_models,
+            "langflow.base.models.model_input_constants": model_constants,
+            "langflow.helpers": langflow_helpers,
+            "langflow.helpers.global_api_key": global_api_key,
+            "langchain_core": langchain_core,
+            "langchain_core.messages": langchain_messages,
         }
     )
 
@@ -89,6 +140,8 @@ REQUEST_V2 = _load_module("moldguard_request_envelope_v2", "MoldGuard_请求信�
 HTTP_V2 = _load_module("moldguard_single_input_http_v2", "MoldGuard_单输入HTTP_V2.py")
 RESPONSE_V2 = _load_module("moldguard_response_envelope_v2", "MoldGuard_响应信封_V2.py")
 SNAPSHOT_V2 = _load_module("moldguard_snapshot_envelope_v2", "MoldGuard_知识快照信封_V2.py")
+SNAPSHOT_V3 = _load_module("moldguard_snapshot_envelope_v3", "MoldGuard_知识快照信封_V3.py")
+MULTIMODAL = _load_module("moldguard_doubao_multimodal_v1", "MoldGuard_豆包多模态_V1.py")
 
 
 class ComponentOutputTests(unittest.TestCase):
@@ -106,12 +159,14 @@ class ComponentOutputTests(unittest.TestCase):
                     all(output.group_outputs is True for output in component_class.outputs)
                 )
 
-    def test_v2_components_have_exactly_one_output(self):
+    def test_single_output_components_have_exactly_one_output(self):
         component_classes = (
             REQUEST_V2.MoldGuardRequestEnvelopeV2,
             HTTP_V2.MoldGuardSingleInputHttpV2,
             RESPONSE_V2.MoldGuardResponseEnvelopeV2,
             SNAPSHOT_V2.MoldGuardKnowledgeSnapshotEnvelopeV2,
+            SNAPSHOT_V3.MoldGuardKnowledgeSnapshotEnvelopeV3,
+            MULTIMODAL.MoldGuardDoubaoMultimodalV1,
         )
 
         for component_class in component_classes:
@@ -126,6 +181,10 @@ class ComponentOutputTests(unittest.TestCase):
             SNAPSHOT_V2.MoldGuardKnowledgeSnapshotEnvelopeV2: (
                 "MoldGuard 知识快照信封 V2（单输出）"
             ),
+            SNAPSHOT_V3.MoldGuardKnowledgeSnapshotEnvelopeV3: (
+                "MoldGuard 知识快照信封 V3（单输出）"
+            ),
+            MULTIMODAL.MoldGuardDoubaoMultimodalV1: ("MoldGuard 豆包多模态 V1（批量图片）"),
         }
 
         for component_class, display_name in expected_names.items():
@@ -561,6 +620,215 @@ class SingleInputHttpV2Tests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("mold_ids", fake_client.request_kwargs["json"])
 
 
+class _FakeMultimodalModel:
+    def __init__(self, content="", error=None):
+        self.content = content
+        self.error = error
+        self.messages = None
+
+    async def ainvoke(self, messages):
+        self.messages = messages
+        if self.error:
+            raise self.error
+        return types.SimpleNamespace(content=self.content)
+
+
+class DoubaoMultimodalV1Tests(unittest.IsolatedAsyncioTestCase):
+    AUDIT_RESULT = {
+        "decision": "NEEDS_MORE_INFO",
+        "decision_label": "需要补充材料",
+        "assessment_summary": "第二张图片过暗，需要补拍。",
+        "confidence": 0.63,
+        "inspection_results": [],
+        "abnormal_items": [],
+        "abnormal_next_action": None,
+        "reason_codes": ["IMAGE_TOO_DARK"],
+        "knowledge_sources": ["MOLDGUARD-KB-1.2"],
+        "review_model": "doubao-test",
+        "image_observations": ["第一张图片清晰", "第二张图片过暗"],
+    }
+
+    def _component(self):
+        component = MULTIMODAL.MoldGuardDoubaoMultimodalV1()
+        component.prompt = _Message(text="只使用这段外部提示词，不得添加内置审核规则。")
+        component.image_source = _Data(
+            data={
+                "body": {
+                    "data": {
+                        "submission": {
+                            "evidence": [
+                                {
+                                    "url": "https://example.test/one.jpg",
+                                    "content_type": "image/jpeg",
+                                },
+                                {
+                                    "url": "https://example.test/two.png",
+                                    "content_type": "image/png",
+                                },
+                            ]
+                        }
+                    }
+                }
+            }
+        )
+        component.image_path = "body.data.submission.evidence"
+        component.response_mode = component.STRICT_JSON
+        component.image_detail = "high"
+        component.max_images = 10
+        component.allowed_url_hosts = ""
+        component.model_name = "doubao-test"
+        component.api_key = ""
+        return component
+
+    async def test_passes_external_prompt_and_multiple_urls_in_order(self):
+        component = self._component()
+        model = _FakeMultimodalModel(json.dumps(self.AUDIT_RESULT, ensure_ascii=False))
+
+        with patch.object(component, "_build_model", return_value=model):
+            result = await component.generate_response()
+
+        self.assertIn(component.OK_TOKEN, result.text)
+        self.assertIn("[DOUBAO_DECISION=NEEDS_MORE_INFO]", result.text)
+        self.assertIn("需要补充材料", result.text)
+        self.assertEqual(result.data["decision"], "NEEDS_MORE_INFO")
+        self.assertEqual(len(model.messages), 1)
+        blocks = model.messages[0].content
+        self.assertEqual(blocks[0], {"type": "text", "text": component.prompt.text})
+        self.assertEqual(
+            [block["image_url"]["url"] for block in blocks[1:]],
+            ["https://example.test/one.jpg", "https://example.test/two.png"],
+        )
+        self.assertTrue(all(block["image_url"]["detail"] == "high" for block in blocks[1:]))
+
+    async def test_accepts_stringified_json_message_from_native_parser(self):
+        component = self._component()
+        component.image_source = _Message(
+            text=json.dumps(component.image_source.data, ensure_ascii=False)
+        )
+        model = _FakeMultimodalModel(json.dumps(self.AUDIT_RESULT, ensure_ascii=False))
+
+        with patch.object(component, "_build_model", return_value=model):
+            result = await component.generate_response()
+
+        self.assertIn(component.OK_TOKEN, result.text)
+        self.assertEqual(len(model.messages[0].content), 3)
+
+    async def test_builds_native_provider_and_uses_global_bytedance_key(self):
+        component = self._component()
+        model = _FakeMultimodalModel(json.dumps(self.AUDIT_RESULT, ensure_ascii=False))
+        key_module = sys.modules["langflow.helpers.global_api_key"]
+        original_key_loader = key_module.get_global_api_key_sync
+        _ProviderComponent.model = model
+        _ProviderComponent.last_kwargs = None
+        key_module.get_global_api_key_sync = lambda name: (
+            "configured-key" if name == "bytedance" else ""
+        )
+
+        try:
+            result = await component.generate_response()
+        finally:
+            key_module.get_global_api_key_sync = original_key_loader
+            _ProviderComponent.model = None
+
+        self.assertIn(component.OK_TOKEN, result.text)
+        self.assertEqual(_ProviderComponent.last_kwargs["model_name"], "doubao-test")
+        self.assertEqual(_ProviderComponent.last_kwargs["api_key"], "configured-key")
+
+    async def test_accepts_fenced_json(self):
+        component = self._component()
+        content = f"```json\n{json.dumps(self.AUDIT_RESULT, ensure_ascii=False)}\n```"
+        model = _FakeMultimodalModel(content)
+
+        with patch.object(component, "_build_model", return_value=model):
+            result = await component.generate_response()
+
+        self.assertIn(component.OK_TOKEN, result.text)
+        self.assertEqual(result.data["assessment_summary"], self.AUDIT_RESULT["assessment_summary"])
+
+    async def test_converts_local_jpeg_png_webp_and_data_url(self):
+        component = self._component()
+        png = b"\x89PNG\r\n\x1a\n" + b"png-pixels"
+        jpeg = b"\xff\xd8\xff" + b"jpeg-pixels"
+        webp = b"RIFF\x08\x00\x00\x00WEBP" + b"webp-pixels"
+        inline_png_content = b"\x89PNG\r\n\x1a\n" + b"different-inline-pixels"
+        inline_png = "data:image/png;base64," + base64.b64encode(inline_png_content).decode()
+        model = _FakeMultimodalModel(json.dumps(self.AUDIT_RESULT, ensure_ascii=False))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            paths = []
+            for filename, content in (("one.jpg", jpeg), ("two.png", png), ("three.webp", webp)):
+                path = Path(temp_dir) / filename
+                path.write_bytes(content)
+                paths.append(str(path))
+            component.image_source = _Message(files=[*paths, inline_png])
+            component.image_path = ""
+            with patch.object(component, "_build_model", return_value=model):
+                result = await component.generate_response()
+
+        self.assertIn(component.OK_TOKEN, result.text)
+        image_urls = [block["image_url"]["url"] for block in model.messages[0].content[1:]]
+        self.assertEqual(len(image_urls), 4)
+        self.assertTrue(image_urls[0].startswith("data:image/jpeg;base64,"))
+        self.assertTrue(image_urls[1].startswith("data:image/png;base64,"))
+        self.assertTrue(image_urls[2].startswith("data:image/webp;base64,"))
+        self.assertEqual(image_urls[3], inline_png)
+
+    async def test_invalid_json_and_model_error_return_failure_message(self):
+        for model in (
+            _FakeMultimodalModel("不是 JSON"),
+            _FakeMultimodalModel(
+                error=RuntimeError("https://secret.example/image.jpg?token=do-not-leak")
+            ),
+        ):
+            with self.subTest(model=model):
+                component = self._component()
+                with patch.object(component, "_build_model", return_value=model):
+                    result = await component.generate_response()
+                self.assertIn(component.FAIL_TOKEN, result.text)
+                self.assertEqual(result.data, {})
+                self.assertNotIn("do-not-leak", result.text)
+                self.assertNotIn("\n", result.text)
+                self.assertNotIn('"', result.text)
+
+    async def test_rejects_wrong_explicit_path_even_when_message_has_files(self):
+        component = self._component()
+        component.image_source = _Message(
+            data={"images": ["https://example.test/one.jpg"]},
+            files=["https://example.test/two.jpg"],
+        )
+        component.image_path = "missing.evidence"
+
+        result = await component.generate_response()
+
+        self.assertIn(component.FAIL_TOKEN, result.text)
+        self.assertIn("不存在指定的字段路径", result.text)
+
+    async def test_rejects_remote_url_outside_configured_hosts(self):
+        component = self._component()
+        component.allowed_url_hosts = "moldguard.oracle.19970219.xyz"
+
+        result = await component.generate_response()
+
+        self.assertIn(component.FAIL_TOKEN, result.text)
+        self.assertIn("不在允许的图片域名", result.text)
+
+    async def test_zero_and_over_limit_images_return_failure_message(self):
+        component = self._component()
+        component.image_source = _Data(data={"images": []})
+        component.image_path = ""
+        result = await component.generate_response()
+        self.assertIn(component.FAIL_TOKEN, result.text)
+
+        component = self._component()
+        component.image_source = _Data(
+            data={"images": [f"https://example.test/{index}.jpg" for index in range(11)]}
+        )
+        component.image_path = "images"
+        result = await component.generate_response()
+        self.assertIn(component.FAIL_TOKEN, result.text)
+        self.assertIn("超过当前上限", result.text)
+
+
 class ResponseEnvelopeV2Tests(unittest.TestCase):
     def test_scan_success_selects_triggered_work_order_from_all_results(self):
         component = RESPONSE_V2.MoldGuardResponseEnvelopeV2()
@@ -743,18 +1011,94 @@ class KnowledgeSnapshotEnvelopeV2Tests(unittest.TestCase):
         component.fallback_items_json = ""
         return component
 
-    def test_builds_single_request_and_propagates_knowledge_context(self):
+    def test_preserves_original_full_metadata_contract(self):
         component = self._component()
         component.knowledge_results = [_Data(data=dict(self.VALID_ITEM))]
 
         request = component.build_request().data
 
+        self.assertEqual(request["json_body"]["items"][0]["knowledge_id"], "KB-1")
+        self.assertIn("KB-1", request["context"]["knowledge_text"])
+
+
+class KnowledgeSnapshotEnvelopeV3Tests(unittest.TestCase):
+    EXTRACTED_ITEM = {
+        "title": "分型面清洁与润滑",
+        "content": "清除分型面异物，检查磨损并补充指定润滑脂。",
+        "source": "模具保养知识库",
+    }
+
+    def _component(self):
+        component = SNAPSHOT_V3.MoldGuardKnowledgeSnapshotEnvelopeV3()
+        component.upstream = _Message(
+            data={
+                "success": True,
+                "context": {
+                    "demo_run_id": "DEMO-001",
+                    "work_order_id": "WO-1",
+                    "employee_id": "EMP-1",
+                    "search_query": "INJECTION 型腔",
+                },
+            }
+        )
+        component.catalog_version = "MOLDGUARD-KB-1.2"
+        component.base_url = "https://moldguard.oracle.19970219.xyz"
+        component.fallback_items_json = ""
+        return component
+
+    def test_builds_single_request_and_propagates_knowledge_context(self):
+        component = self._component()
+        component.knowledge_results = _Data(data={"results": [dict(self.EXTRACTED_ITEM)]})
+
+        request = component.build_request().data
+        item = request["json_body"]["items"][0]
+
         self.assertEqual(request["schema_version"], "moldguard.request.v2")
         self.assertEqual(request["method"], "POST")
         self.assertTrue(request["url"].endswith("/work-orders/WO-1/knowledge"))
-        self.assertEqual(request["json_body"]["items"][0]["knowledge_id"], "KB-1")
-        self.assertIn("KB-1", request["context"]["knowledge_text"])
+        self.assertTrue(item["knowledge_id"].startswith("KB-SHA256-"))
+        self.assertEqual(item["item"], self.EXTRACTED_ITEM["title"])
+        self.assertEqual(item["knowledge_type"], "MAINTENANCE_GUIDANCE")
+        self.assertTrue(item["required"])
+        self.assertIn(self.EXTRACTED_ITEM["content"], request["context"]["knowledge_text"])
+        self.assertNotIn("KB-SHA256-", request["context"]["knowledge_text"])
         self.assertEqual(request["context"]["employee_id"], "EMP-1")
+
+    def test_generated_id_is_stable_and_duplicate_results_are_collapsed(self):
+        component = self._component()
+        component.knowledge_results = _Data(
+            data={"results": [dict(self.EXTRACTED_ITEM), dict(self.EXTRACTED_ITEM)]}
+        )
+        first_request = component.build_request().data
+
+        second_component = self._component()
+        second_component.knowledge_results = _Data(data=dict(self.EXTRACTED_ITEM))
+        second_request = second_component.build_request().data
+
+        first_items = first_request["json_body"]["items"]
+        second_items = second_request["json_body"]["items"]
+        self.assertEqual(len(first_items), 1)
+        self.assertEqual(first_items[0]["knowledge_id"], second_items[0]["knowledge_id"])
+
+    def test_accepts_json_message_from_modular_extraction(self):
+        component = self._component()
+        component.knowledge_results = _Message(
+            text=json.dumps({"results": [self.EXTRACTED_ITEM]}, ensure_ascii=False)
+        )
+
+        request = component.build_request().data
+
+        self.assertEqual(
+            request["json_body"]["items"][0]["source"],
+            "模具保养知识库",
+        )
+
+    def test_rejects_extracted_result_without_human_readable_source(self):
+        component = self._component()
+        component.knowledge_results = _Data(data={"title": "标题", "content": "保养说明"})
+
+        with self.assertRaisesRegex(ValueError, "缺少字段：source"):
+            component.build_request()
 
 
 if __name__ == "__main__":

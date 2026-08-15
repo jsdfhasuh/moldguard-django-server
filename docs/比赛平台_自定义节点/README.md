@@ -1,13 +1,21 @@
 # MoldGuard 比赛平台自定义节点
 
-流程 01 和流程 02 使用以下单输出组件。在小天 AI 平台的“自定义组件”中依次粘贴、验证并保存：
+流程 01 使用以下四个单输出组件。在小天 AI 平台的“自定义组件”中依次粘贴、验证并保存：
 
 1. `MoldGuard_请求信封_V2.py`
 2. `MoldGuard_单输入HTTP_V2.py`
 3. `MoldGuard_响应信封_V2.py`
-4. `MoldGuard_知识快照信封_V2.py`
+4. `MoldGuard_知识快照信封_V3.py`
 
-画布显示名以当前注册版本为准：请求信封和响应信封显示为 `V3（单输出）`，单输入 HTTP 和知识快照信封仍显示为 `V2`。源码文件名、Python 类名和 `moldguard.request.v2` / `moldguard.response.v2` 信封契约保持不变。
+画布显示名以当前注册版本为准：请求信封、响应信封和知识快照信封显示为 `V3（单输出）`，单输入 HTTP 仍显示为 `V2`。V3 是平台组件身份版本；HTTP Data 内的 `moldguard.request.v2` / `moldguard.response.v2` 是后端信封协议版本，两者不要求相同。
+
+原来的 `MoldGuard_知识快照信封_V2.py` 保留用于已搭建流程，只接受完整七字段知识项。流程 01 必须新注册 V3，不要用 V3 代码覆盖平台中的 V2 组件。
+
+流程 02 只需要额外注册：
+
+1. `MoldGuard_豆包多模态_V1.py`
+
+流程 02 的 GET、POST、条件路由和中文结果展示全部使用平台原生节点，不连接请求信封 V3、响应信封 V3 或单输入 HTTP V2，也不需要创建 V4。
 
 以下三个旧版组件为已存在的流程 04 和回退保留，不再用于新建的流程 01/02：
 
@@ -25,25 +33,77 @@
 - V2 单输入 HTTP 只执行信封中的 HTTP 请求，并原样传递 `context`；它不执行派工、知识或邮件业务规则。
 - 响应信封 V3 只解析 HTTP Data，输出一个带业务数据的 `Message`；成功/失败由平台原生“如果-否则”节点路由。
 - 知识库检索由平台“我的知识库”节点执行；Django 不访问平台知识库。
-- V2 知识快照信封把平台检索结果转换为受控 `items[]`，并生成单个知识快照请求 `Data`。
+- 流程 01 使用“解析器 + 提示词 + 大模型”把真实检索内容整理成只含 `title/content/source` 的严格 JSON；V3 知识快照信封直接接收大模型 `Message`，自动补齐内部字段并生成单个知识快照请求 `Data`。
 - Django 校验、保存并哈希知识包，随后自行渲染和发送邮件。
 - 员工只在 Django 邮件链接页面提交文字和图片。平台没有员工报工页面，也不向 Django 提交远程图片 URL。
 - Django 保存报工材料后通过 Webhook 唤醒平台；平台只读取审核上下文并回写审核建议。
-- 流程 01/02 的 HTTP 调用由画布上独立的 `MoldGuard 单输入 HTTP V2` 执行，不隐藏在业务信封组件内。
+- 豆包多模态节点只负责通用的提示词、图片和模型调用，不内置 MoldGuard 审核规则。
+- 审核规则、中文输出要求和 Django POST JSON 契约全部配置在画布上的原生“提示词”节点。
+- 流程 01 的 HTTP 调用由 `MoldGuard 单输入 HTTP V2` 执行；流程 02 的 GET 和 POST 使用平台原生 `JSON HTTP 请求`。
+- 流程 02 使用原生“消息转数据”和“解析器”把豆包 `Message.data` 转为 POST JSON；模型失败由原生模板固定回写 `NEEDS_MORE_INFO`。
 - 单输出组件不保存 API Key、不访问数据库、不直接发送邮件。
+
+## 豆包多模态 V1
+
+`MoldGuard 豆包多模态 V1（批量图片）` 复用平台
+`MODEL_PROVIDERS_DICT["豆包AI"]` 的原生模型字段和全局 `bytedance` API Key。它把模型输入明确构造成：
+
+```python
+HumanMessage(
+    content=[
+        {"type": "text", "text": prompt_text},
+        {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}},
+    ]
+)
+```
+
+节点支持 1 至 10 张图片，输入可以是：
+
+- Django 公网图片 URL；
+- 平台文件节点返回的 `file_path` 或二进制 `result`；
+- `ChatInput.files` 中的临时文件；
+- JPEG、PNG、WebP 本地文件；
+- `data:image/*;base64,...` Data URL。
+
+URL 会作为独立 `image_url` 内容块发送；本地文件和二进制会先按文件签名校验，再转换为
+Data URL。完全相同的图片会去重，图片顺序保持不变。节点不会把 URL 拼入提示词冒充视觉输入。
+
+默认使用 `严格 JSON` 模式：
+
+- `Message.text` 以 `[DOUBAO_OK]` 或 `[DOUBAO_FAIL]` 开头，供聊天输出中文展示；
+- 严格 JSON 中存在合法 `decision` 时，文本还包含 `[DOUBAO_DECISION=...]`，供原生安全门精确路由；
+- 成功时 `Message.data` 是模型返回的 JSON 对象，可连接 Django 回写请求；
+- 图片、模型或 JSON 失败时 `Message.data={}`，流程 02 的原生条件和模板会安全生成 `NEEDS_MORE_INFO`。
+
+豆包节点不内置 Django 字段白名单。流程 02 的提示词必须要求模型只输出 Django serializer 接受的键，
+并把逐图观察和补充要求写入中文 `assessment_summary`。Django 会继续拒绝错误哈希、非法枚举、低置信度和身份字段。
+
+流程 02 的图片来源连接 `05_校验审核上下文.true_result` 时，图片字段路径填写：
+
+```text
+body.data.submission.evidence
+```
+
+流程 02 还应把“允许的图片域名”设置为：
+
+```text
+moldguard.oracle.19970219.xyz
+```
 
 ## 报工审核安全门
 
-当前已核验的“大模型”节点只消费文本，不会读取聊天输入的图片文件。因此请求适配器中的
-`MULTIMODAL_REVIEW_VERIFIED` 固定为 `False`，审核回写只接受：
+平台原生“大模型”节点仍然只消费文本。新的豆包多模态节点已在代码层构造图片内容块，但在平台完成
+“更换图片像素会改变模型观察或结论”的端到端验证前，流程 02 的原生条件节点 10 只放行：
 
 ```text
 decision = NEEDS_MORE_INFO
 ```
 
-当前配置若尝试回写 `COMPLETE` 或 `ABNORMAL`，组件会直接报错，不会调用 Django。只有在真实验证某个多模态节点或文件桥接能读取审核上下文中的全部图片后，才允许修改该门禁并启用完整审核分支。把图片 URL 拼进文字提示词不算视觉验证。
+模型提前输出 `COMPLETE`、`ABNORMAL`、无效 JSON 或调用失败时，节点 10 的假分支会触发原生模板，固定回写
+`NEEDS_MORE_INFO`。至少两张真实图片的像素对照测试通过后，只需把节点 10 改为
+`contains [DOUBAO_OK]`；不修改或重新注册 V3 信封。把图片 URL 拼进文字提示词不算视觉验证。
 
-## 响应信封 V3 变量映射
+## 响应信封 V3 变量映射（流程 01 与兼容用途）
 
 | 响应类型 | 主变量 | 次变量 | 成功条件 |
 |---|---|---|---|
@@ -60,7 +120,7 @@ decision = NEEDS_MORE_INFO
 
 ## 审核接口
 
-平台只调用以下报工审核接口：
+流程 02 的原生 `JSON HTTP 请求` 只调用以下报工审核接口：
 
 ```text
 GET  /api/v1/report-submissions/{submission_id}/review-context
@@ -75,20 +135,34 @@ POST /api/v1/work-orders/{id}/report-submissions
 
 Django Webhook 只含 `submission_id`、`work_order_id` 和 `review_context_url` 等定位字段。员工正文、图片和知识快照必须由平台通过审核上下文接口读取。
 
-## 知识快照严格规则
+## 知识快照输入与内部字段
 
-检索结果只有同时具备以下字段才会进入 `items[]`：
+流程 01 先用“解析器”把 `模具保养知识库` 的 `list[Data]` 合并为文本，再由“提示词”约束平台原生“大模型”一次调用直接生成严格 JSON：
 
-```text
-knowledge_id
-title
-item
-knowledge_type
-content
-source
-required
+```json
+{
+  "results": [
+    {
+      "title": "分型面清洁与润滑",
+      "content": "清除分型面异物，检查磨损并补充指定润滑脂。",
+      "source": "模具保养知识库"
+    }
+  ]
+}
 ```
 
-`required` 必须是真正的布尔值。节点不会根据正文猜测缺失字段。若平台知识库返回的 metadata 不完整，可在“受控备用知识项 JSON”中显式配置经过确认的知识项。
+`MoldGuard 知识快照信封 V3（单输出）`兼容上述 JSON `Message`，也兼容相同结构的 `Data` 或单个
+`{"title": ..., "content": ..., "source": ...}` 对象。平台知识库和大模型都不需要生成 `knowledge_id`。该组件现有 `knowledge_results` 端口在画布上仍显示“模块化提取结果”，流程 01 直接把大模型 `response` 连到这个历史名称端口，不修改组件源码或显示名。
 
-平台将构建结果 POST 到 `/api/v1/work-orders/{work_order_id}/knowledge`。不得改成 Django 主动检索，也不得把 AI 生成文本作为知识包提交。
+节点会在请求 Django 前确定性补齐内部契约字段：
+
+```text
+knowledge_id   = KB-SHA256-<title/content/source 的 SHA-256>
+item           = title
+knowledge_type = MAINTENANCE_GUIDANCE
+required       = true
+```
+
+相同的 `title/content/source` 始终生成相同 ID，并按该 ID 去重。`knowledge_text` 只保留标题、正文和来源，不显示内部 ID。`title`、`content`、`source` 任一为空时节点会明确报错；受控备用 JSON 也只需这三个字段。
+
+平台将构建结果 POST 到 `/api/v1/work-orders/{work_order_id}/knowledge`。不得改成 Django 主动检索。大模型只能从真实检索内容中提炼可执行的保养与点检步骤，不得补写不存在的要求或来源，也不得把模次阈值、时间周期、规则编号、建单条件或周期复位逻辑写入知识快照。
