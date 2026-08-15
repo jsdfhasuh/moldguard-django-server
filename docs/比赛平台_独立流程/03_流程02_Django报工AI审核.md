@@ -2,19 +2,24 @@
 
 ## 流程信息
 
-- 平台流程名称：`MoldGuard_02_Django报工AI审核_V2`
+- 平台智能体名称：`MoldGuard_Django报工AI审核`
+- 平台画布名称：`MoldGuard_02_Django报工AI审核`
 - 平台流程 ID：`d572e00b-1294-47b9-ad9c-2155dec33998`
 - Webhook：`https://zhgh.xiaotian.ai/api/v1/webhook/d572e00b-1294-47b9-ad9c-2155dec33998`
-- 规划节点数：22
-- 规划连线数：28
+- 当前可见节点数：26
+- 已连接业务节点数：24
+- 当前连线数：30
 - 后端地址：`https://moldguard.oracle.19970219.xyz`
 - 员工入口：邮件中的 Django `report_url`
+- 平台实装核对日期：`2026-08-15`
 
 员工只在 Django 页面提交文字和 1 至 10 张图片。平台不提供员工报工页面，也不从聊天输入接收正式报工。
 
+当前画布另外保留 2 个未连线的旧“模板数据注入”节点，所以可见节点数为 26；真正参与执行的仍是下文 24 个节点和 30 条连线。
+
 ## 最终实现口径
 
-流程 02 只注册一个自定义节点：
+流程 02 只使用一个已经审核的自定义节点：
 
 ```text
 MoldGuard 豆包多模态 V1（批量图片）
@@ -70,9 +75,11 @@ Django 是完工、异常、周期复位和履历的唯一权威。模型不得�
 | 03 | JSON HTTP 请求 | `03_GET报工审核上下文` |
 | 04 | 解析器 | `04_审核上下文字符串化` |
 | 05 | 如果-否则 | `05_校验审核上下文` |
+| 06A | 模板数据注入 | `06A_构建上下文失败提示` |
 | 06 | 聊天输出 | `06_展示上下文失败` |
 | 07 | 提示词 | `07_配置报工审核规则` |
 | 08 | MoldGuard 豆包多模态 V1 | `08_豆包批量图片审核` |
+| 09A | 解析器 | `09A_格式化豆包审核建议` |
 | 09 | 聊天输出 | `09_展示豆包审核建议` |
 | 10 | 如果-否则 | `10_豆包结果安全门` |
 | 11 | 消息转数据 | `11_提取豆包审核JSON` |
@@ -88,6 +95,17 @@ Django 是完工、异常、周期复位和履历的唯一权威。模型不得�
 | 21 | 解析器 | `21_中文化安全回写响应` |
 | 22 | 聊天输出 | `22_展示Django安全裁决` |
 
+### 当前画布的两个未连线节点
+
+平台只读核对时还存在以下两个原生节点。它们没有任何输入或输出连线，不参与流程执行，且显示名与已连接的 19、21 解析器重复：
+
+| 节点类型 | 平台当前显示名 | 当前状态 |
+|---|---|---|
+| 模板数据注入 | `19_中文化豆包回写响应` | 未连线；模板仍为默认占位内容 |
+| 模板数据注入 | `21_中文化安全回写响应` | 未连线；模板仍为默认占位内容 |
+
+因此本文后续流程图和 30 条连线表只描述 24 个已连接节点。若以后清理这两个原生遗留节点，不涉及自定义组件复审；清理前先导出画布备份，并同步把“当前可见节点数”从 26 改为 24。
+
 ## 流程图
 
 ```mermaid
@@ -96,14 +114,16 @@ flowchart LR
     B --> C["03 原生 JSON HTTP GET"]
     C --> D["04 响应字符串化"]
     D --> E{"05 上下文有效"}
-    E -->|否| F["06 展示失败"]
+    E -->|否，只作触发| F0["06A 构建失败提示"]
+    F0 --> F["06 展示失败"]
     E -->|是| G["07 外部审核提示词"]
-    E -->|全部图片上下文| H["08 豆包多图审核"]
+    C -->|原始图片上下文| H["08 豆包多图审核"]
     G --> H
-    H --> I["09 中文展示豆包建议"]
     H --> J{"10 当前允许回写"}
 
     J -->|是| K["11 消息转数据"]
+    K --> I0["09A 格式化豆包建议"]
+    I0 --> I["09 中文展示豆包建议"]
     K --> L["12 JSON 字符串化"]
     L --> M["14 POST 豆包建议"]
 
@@ -123,7 +143,7 @@ flowchart LR
     U --> V["22 展示 Django 安全裁决"]
 ```
 
-豆包结果先在节点 09 向用户展示。节点 10 再决定发送豆包 JSON，还是发送固定的 `NEEDS_MORE_INFO`。两条 POST 分支都使用 Django 返回的可信回写 URL，并把 Django 原始裁决包装成中文说明显示给用户。
+节点 10 先检查豆包结果中的机器门禁标记。只有通过门禁的严格 JSON 才经节点 11 和 09A 转成不含机器标记的用户摘要，并同时进入 Django 回写；未通过门禁的结果只进入固定 `NEEDS_MORE_INFO` 分支。两条 POST 分支都使用 Django 返回的可信回写 URL，并把 Django 裁决整理成中文说明显示给用户。
 
 ## 节点配置
 
@@ -170,7 +190,7 @@ HTTP 方法 = GET
 
 响应必须包含 `body.data.submission`、全部 `evidence[]`、`work_order`、锁定的 `knowledge_package`、64 位 `knowledge_package_hash` 和 `review_callback_url`。
 
-### 04、05、06 上下文字符串化和校验
+### 04、05、06A、06 上下文字符串化和校验
 
 节点 04：
 
@@ -189,7 +209,23 @@ HTTP 方法 = GET
 默认路由 = false_result
 ```
 
-`05.false_result -> 06.input_value`。`05.true_result` 保留完整 JSON Message，既作为提示词中的可信上下文，也作为豆包节点的批量图片来源。
+节点 06A 使用原生“模板数据注入”，模板固定为：
+
+```text
+报工审核未开始
+
+系统未能取得完整的报工材料，本次未调用图片审核，也未修改工单状态。
+请检查报工信息和现场图片后重新提交。
+```
+
+连接：
+
+```text
+05.false_result -> 06A.tool_placeholder
+06A.text -> 06.input_value
+```
+
+`tool_placeholder` 只负责在校验失败分支触发节点 06A，不写入展示文本。这样节点 06 不会展示原始 HTTP 响应或审核上下文。`05.true_result` 只把已校验的完整 JSON Message 交给节点 07 作为可信提示词上下文；豆包图片来源始终使用节点 03 的原始响应 Data。
 
 ### 07 审核提示词
 
@@ -239,11 +275,11 @@ NEEDS_MORE_INFO 可以使用空 inspection_results，abnormal_next_action 必须
 
 ### 08 豆包批量图片审核
 
-先注册 `MoldGuard_豆包多模态_V1.py`，再拖入画布：
+从平台已审核组件库选择 `MoldGuard 豆包多模态 V1（批量图片）`，不要重新粘贴、修改或注册组件源码，然后按以下方式连接：
 
 ```text
 外部提示词 <- 07.prompt
-图片来源 <- 05.true_result
+图片来源 <- 03.response
 图片字段路径 = body.data.submission.evidence
 允许的图片域名 = moldguard.oracle.19970219.xyz
 输出模式 = 严格 JSON
@@ -253,15 +289,32 @@ NEEDS_MORE_INFO 可以使用空 inspection_results，abnormal_next_action 必须
 API Key = 留空，复用平台全局 bytedance Key
 ```
 
-节点把原生解析器产生的 JSON Message 重新解析为对象，并把每张图片构造成独立的 `image_url` 内容块。成功时 `Message.data` 是模型 JSON；失败时输出 `[DOUBAO_FAIL]` 和空数据。
+节点直接从节点 03 的原始 HTTP 响应 Data 中读取 `body.data.submission.evidence`，并把每张图片构造成独立的 `image_url` 内容块。不要把 `05.true_result` 接到图片来源：条件路由输出的是 Message，可能优先携带不含 `body.data.submission.evidence` 的消息数据，从而触发“图片来源中不存在字段路径”的安全回退。节点 07 的提示词仍由 `05.true_result` 触发，因此审核上下文校验失败时不会调用豆包。成功时 `Message.data` 是模型 JSON；失败时输出 `[DOUBAO_FAIL]` 和空数据。
 
-### 09 展示豆包建议
+### 09A、09 展示豆包建议
 
 ```text
-08.result -> 09.input_value
+模式 = 整理模式 (Parser)
+数据源 <- 11.data
+
+模板：
+AI 图片审核建议
+
+审核结论：{decision}
+审核说明：{assessment_summary}
+置信度：{confidence}
+
+代码说明：COMPLETE=审核完成；ABNORMAL=发现异常；NEEDS_MORE_INFO=需要补充材料。
 ```
 
-节点 09 展示中文结论、置信度、审核说明、点检结果和异常项目。这是豆包建议，不是 Django 最终状态。
+连接：
+
+```text
+11.data -> 09A.input_data
+09A.parsed_text -> 09.input_value
+```
+
+节点 09 只展示门禁通过后的中文审核摘要，不再直接接收节点 08 的 Message，因此不会暴露 `[DOUBAO_OK]`、`[DOUBAO_DECISION=...]` 或“机器审核结果已准备”等内部控制文本。这是豆包建议，不是 Django 最终状态；Django 裁决仍在节点 20 或 22 展示。
 
 ### 10 豆包结果安全门
 
@@ -297,7 +350,7 @@ API Key = 留空，复用平台全局 bytedance Key
 消息 <- 10.true_result
 ```
 
-原生“消息转数据”只复制 `Message.data`。豆包成功时这里得到严格 JSON 对象。
+原生“消息转数据”只复制 `Message.data`。豆包成功时这里得到严格 JSON 对象；`11.data` 同时供节点 09A 生成人类可读摘要，并供节点 12 生成 Django POST 正文。
 
 节点 12：
 
@@ -353,7 +406,7 @@ HTTP 方法 = POST
 {
   "client_request_id": "ai-review-{submission_id}",
   "decision": "NEEDS_MORE_INFO",
-  "assessment_summary": "豆包多模态审核未生成当前允许的可靠结果，请补充清晰现场图片后重新提交。",
+  "assessment_summary": "暂时无法完成图片审核，请补充清晰、完整的现场图片后重新提交。",
   "confidence": 0,
   "knowledge_package_hash": "{knowledge_package_hash}",
   "inspection_results": [],
@@ -388,14 +441,40 @@ HTTP 方法 = POST
 
 ### 19 至 22 中文显示 Django 裁决
 
-节点 19 和 21 都使用原生“解析器”的整理模式，模板相同：
+节点 19 和 21 都使用原生“解析器”的整理模式，但根据分支用途使用不同模板。
+
+节点 19 展示 Django 对豆包建议的最终裁决：
 
 ```text
-Django 最终裁决响应
-HTTP 状态：{status_code}
-响应正文：{body}
-中文对照：COMPLETE=审核完成，ABNORMAL=发现异常，NEEDS_MORE_INFO=需要补充材料；FINALIZED=审核已终结，COMPLETED=工单已完成，ABNORMAL_REPORTED=工单已登记异常，ASSIGNED/IN_PROGRESS/PAUSED=工单状态保持不变。
+AI 审核结果
+
+审核结论：{body[data][review_decision]}
+审核说明：{body[data][assessment_summary]}
+报工状态：{body[data][submission_status]}
+工单状态：{body[data][work_order_status]}
+
+提交编号：{body[data][submission_id]}
+工单编号：{body[data][work_order_id]}
+接口状态：HTTP {status_code}
+
+代码说明：COMPLETE=审核完成；ABNORMAL=发现异常；NEEDS_MORE_INFO=需要补充材料；FINALIZED=审核已终结；ASSIGNED=已派工；IN_PROGRESS=处理中；PAUSED=已暂停；COMPLETED=已完成；ABNORMAL_REPORTED=已登记异常。
 ```
+
+节点 21 展示固定安全分支的 Django 裁决：
+
+```text
+报工审核结果
+
+审核结论：需要补充材料
+审核说明：{body[data][assessment_summary]}
+当前处理：工单状态未改变，请补充材料后重新提交。
+
+提交编号：{body[data][submission_id]}
+工单编号：{body[data][work_order_id]}
+接口状态：HTTP {status_code}
+```
+
+面向用户的节点 20 和 22 不再直接展示 `{body}` 整包响应，也不展示 URL、请求 ID、时间戳和 `replayed` 等调试字段。需要排查接口问题时，在节点 14 或 18 的运行详情中查看原始响应。
 
 连接：
 
@@ -404,9 +483,9 @@ HTTP 状态：{status_code}
 18.response -> 21.input_data -> 22.input_value
 ```
 
-节点 20 显示 Django 对豆包 JSON 的最终响应；节点 22 显示 Django 对固定安全回写的最终响应。HTTP 状态与完整响应正文始终可见，不会把 Webhook 成功误当成审核成功。
+节点 20 显示 Django 对豆包 JSON 的最终裁决；节点 22 显示 Django 对固定安全回写的最终裁决。两个用户输出都保留 HTTP 状态和核心业务字段，不会把 Webhook 成功误当成审核成功。
 
-## 28 条连线清单
+## 30 条连线清单
 
 ```text
 01.output_data -> 02.input_data
@@ -414,14 +493,16 @@ HTTP 状态：{status_code}
 03.response -> 04.input_data
 04.parsed_text -> 05.input_text
 04.parsed_text -> 05.message
-05.false_result -> 06.input_value
+05.false_result -> 06A.tool_placeholder
+06A.text -> 06.input_value
 05.true_result -> 07.review_context
 07.prompt -> 08.prompt
-05.true_result -> 08.image_source
-08.result -> 09.input_value
+03.response -> 08.image_source
 08.result -> 10.input_text
 08.result -> 10.message
 10.true_result -> 11.message
+11.data -> 09A.input_data
+09A.parsed_text -> 09.input_value
 11.data -> 12.input_data
 03.response -> 13.input_data
 12.parsed_text -> 14.json_body
@@ -439,13 +520,13 @@ HTTP 状态：{status_code}
 21.parsed_text -> 22.input_value
 ```
 
-## 注册和搭建顺序
+## 备份和核对顺序
 
 1. 导出当前流程 02 备份。
-2. 只注册 `MoldGuard_豆包多模态_V1.py`。
-3. 不更新请求信封 V3，不更新响应信封 V3，不创建 V4。
-4. 按 22 节点清单拖入原生节点并改名。
-5. 按 28 条连线清单连接端口。
+2. 确认画布选择的是平台已经审核的 `MoldGuard 豆包多模态 V1（批量图片）`；不得重新注册或修改其源码。
+3. 不更新请求信封 V3，不更新响应信封 V3，不创建或重新注册 V4。
+4. 按 24 个已连接节点清单搭建业务链路；当前画布另有 2 个未连线旧模板节点，不要把它们接入流程。
+5. 按 30 条连线清单连接端口。
 6. 首次联调保持节点 10 的 `DOUBAO_OK + NEEDS_MORE_INFO` 正则门禁。
 7. 完成像素对照和 Django 回写验证后，再把节点 10 改为 `contains [DOUBAO_OK]`。
 
@@ -465,13 +546,15 @@ HTTP 状态：{status_code}
 
 ```text
 [ ] 请求信封 V3 与响应信封 V3 未改动
-[ ] 只注册豆包多模态 V1 一个自定义节点
-[ ] 流程共有 22 个节点和 28 条连线
+[ ] 只使用平台已审核的豆包多模态 V1 一个自定义节点，未重新注册或修改组件
+[ ] 当前画布共有 26 个可见节点和 30 条连线
+[ ] 其中 24 个节点参与业务链路，2 个旧模板数据注入节点保持未连线
 [ ] 员工只从 Django report_url 上传文字和图片
 [ ] Webhook 只包含定位字段
 [ ] 原生 JSON HTTP GET 获得员工文字、全部证据和锁定知识包
 [ ] 豆包请求包含全部图片的真实 image_url 内容块
-[ ] 用户看到中文豆包审核建议
+[ ] 上下文失败时只显示固定中文提示，不展示原始 JSON
+[ ] 用户看到不含机器门禁标记的中文豆包审核建议
 [ ] 原生 JSON HTTP POST 把机器 JSON 回写 Django
 [ ] 用户看到中文 Django 最终响应
 [ ] 模型失败或未通过门禁时固定回写 NEEDS_MORE_INFO
